@@ -1,0 +1,11 @@
+node_modules
+.pnpm-store
+.next
+out
+coverage
+.env
+.env*.local
+*.log
+tsconfig.tsbuildinfo
+pnpm-workspace.yaml
+vercel.json
