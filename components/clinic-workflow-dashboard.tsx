@@ -1832,9 +1832,9 @@ function MedBaseLogo({ compact = false }: { compact?: boolean }) {
   return (
     <span className="inline-flex items-center gap-2">
       <img
-        alt=""
-        className={compact ? "h-8 w-auto" : "h-10 w-auto"}
-        src="/medbase-logo.svg"
+        alt="Med Base"
+        className={compact ? "h-14 w-auto" : "h-16 w-auto"}
+        src="/medbase-logo.png"
       />
       <span className="sr-only">Med Base</span>
     </span>
