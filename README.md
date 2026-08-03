@@ -1,4 +1,4 @@
-# MedBase
+# Med Base
 
 A production-ready SaaS application foundation built with Next.js 15, TypeScript, Tailwind CSS, App Router, and Supabase.
 

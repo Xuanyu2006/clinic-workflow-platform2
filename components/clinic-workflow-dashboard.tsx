@@ -77,7 +77,7 @@ type SummarySuggestion = {
   dueDate: string;
 };
 
-const demoBanner = "MedBase Prototype - Demonstration Only - No Real Patient Data";
+const demoBanner = "Med Base Prototype - Demonstration Only - No Real Patient Data";
 
 const roles: Role[] = [
   "Administrator",
@@ -601,7 +601,7 @@ export function MedBaseDashboard() {
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-5 py-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase text-primary">
-              MedBase
+              Med Base
             </p>
             <h1 className="mt-2 text-3xl font-semibold tracking-normal">
               Healthcare operations command center
@@ -784,7 +784,7 @@ function LandingPage({
             Prototype
           </StatusPill>
           <h1 className="mt-5 max-w-xl text-4xl font-semibold leading-tight tracking-normal md:text-5xl">
-            MedBase coordinates healthcare operations without becoming an EHR
+            Med Base coordinates healthcare operations without becoming an EHR
           </h1>
           <p className="mt-5 max-w-lg text-sm leading-7 text-muted-foreground">
             A modular SaaS prototype for scheduling, staff messaging, reminders,
@@ -861,7 +861,7 @@ function LandingPage({
             clinical decisions and medical documentation outside the platform.
           </p>
           <div className="mt-8 rounded-lg bg-slate-950 p-8 text-left text-white shadow-xl">
-            <p className="text-5xl font-semibold">MedBase workflow platform</p>
+            <p className="text-5xl font-semibold">Med Base workflow platform</p>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
               Scheduling, messages, reminders, forms, and task management in one
               operational workspace.
@@ -1162,7 +1162,7 @@ function AuthScreen({
           Back to landing page
         </button>
         <p className="mt-5 text-sm font-semibold uppercase text-primary">
-          MedBase
+          Med Base
         </p>
         <h1 className="mt-3 text-2xl font-semibold">
           {isCreate ? "Create account" : "Log in"}
@@ -1804,7 +1804,7 @@ function SettingsModule() {
       <div className="grid gap-4 xl:grid-cols-2">
         <InfoBlock
           title="Organization Information"
-          lines={["Demo MedBase Operations Group", "Multi-site workflow prototype"]}
+          lines={["Demo Med Base Operations Group", "Multi-site workflow prototype"]}
         />
         <InfoBlock
           title="Departments"
@@ -1836,7 +1836,7 @@ function MedBaseLogo({ compact = false }: { compact?: boolean }) {
         className={compact ? "h-8 w-auto" : "h-10 w-auto"}
         src="/medbase-logo.svg"
       />
-      <span className="sr-only">MedBase</span>
+      <span className="sr-only">Med Base</span>
     </span>
   );
 }

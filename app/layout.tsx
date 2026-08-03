@@ -3,8 +3,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "MedBase",
-    template: "%s | MedBase",
+    default: "Med Base",
+    template: "%s | Med Base",
   },
   description: "A secure healthcare operations workflow platform foundation.",
 };
