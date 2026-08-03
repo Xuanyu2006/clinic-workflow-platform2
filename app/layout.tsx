@@ -3,10 +3,10 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Clinic Workflow Platform",
-    template: "%s | Clinic Workflow Platform",
+    default: "MedBase",
+    template: "%s | MedBase",
   },
-  description: "A secure healthcare workflow platform foundation.",
+  description: "A secure healthcare operations workflow platform foundation.",
 };
 
 export default function RootLayout({

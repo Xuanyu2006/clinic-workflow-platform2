@@ -77,7 +77,7 @@ type SummarySuggestion = {
   dueDate: string;
 };
 
-const demoBanner = "Prototype - Demonstration Only - No Real Patient Data";
+const demoBanner = "MedBase Prototype - Demonstration Only - No Real Patient Data";
 
 const roles: Role[] = [
   "Administrator",
@@ -342,7 +342,7 @@ const statusStyles: Record<TaskStatus, string> = {
   Overdue: "bg-rose-50 text-rose-700 ring-rose-200",
 };
 
-export function ClinicWorkflowDashboard() {
+export function MedBaseDashboard() {
   const [userEmail, setUserEmail] = useState("");
   const [role, setRole] = useState<Role>("Administrator");
   const [authMode, setAuthMode] = useState<"login" | "create">("login");
@@ -601,10 +601,10 @@ export function ClinicWorkflowDashboard() {
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-5 py-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase text-primary">
-              Clinic Workflow Platform
+              MedBase
             </p>
             <h1 className="mt-2 text-3xl font-semibold tracking-normal">
-              Operational workflow command center
+              Healthcare operations command center
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
               Signed in as {userEmail} - {role}
@@ -756,10 +756,7 @@ function LandingPage({
             type="button"
             onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
           >
-            <span className="grid size-7 place-items-center rounded-md bg-foreground text-xs text-white">
-              C
-            </span>
-            Clinic Workflow
+            <MedBaseLogo compact />
           </button>
           <nav className="hidden items-center gap-8 text-xs font-medium text-muted-foreground md:flex">
             <a className="text-primary" href="#overview">
@@ -787,7 +784,7 @@ function LandingPage({
             Prototype
           </StatusPill>
           <h1 className="mt-5 max-w-xl text-4xl font-semibold leading-tight tracking-normal md:text-5xl">
-            Healthcare workflow coordination without becoming an EHR
+            MedBase coordinates healthcare operations without becoming an EHR
           </h1>
           <p className="mt-5 max-w-lg text-sm leading-7 text-muted-foreground">
             A modular SaaS prototype for scheduling, staff messaging, reminders,
@@ -864,7 +861,7 @@ function LandingPage({
             clinical decisions and medical documentation outside the platform.
           </p>
           <div className="mt-8 rounded-lg bg-slate-950 p-8 text-left text-white shadow-xl">
-            <p className="text-5xl font-semibold">Workflow platform</p>
+            <p className="text-5xl font-semibold">MedBase workflow platform</p>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
               Scheduling, messages, reminders, forms, and task management in one
               operational workspace.
@@ -1115,7 +1112,7 @@ function LandingPage({
       <footer className="border-t border-border px-5 py-10">
         <div className="mx-auto grid max-w-7xl gap-8 text-sm md:grid-cols-[1.5fr_1fr_1fr_1fr]">
           <div>
-            <p className="font-semibold">Clinic Workflow</p>
+            <MedBaseLogo compact />
             <p className="mt-3 max-w-sm leading-6 text-muted-foreground">
               Prototype - Demonstration Only - No Real Patient Data.
             </p>
@@ -1165,7 +1162,7 @@ function AuthScreen({
           Back to landing page
         </button>
         <p className="mt-5 text-sm font-semibold uppercase text-primary">
-          Clinic Workflow Platform
+          MedBase
         </p>
         <h1 className="mt-3 text-2xl font-semibold">
           {isCreate ? "Create account" : "Log in"}
@@ -1807,7 +1804,7 @@ function SettingsModule() {
       <div className="grid gap-4 xl:grid-cols-2">
         <InfoBlock
           title="Organization Information"
-          lines={["Demo Clinic Operations Group", "Multi-site workflow prototype"]}
+          lines={["Demo MedBase Operations Group", "Multi-site workflow prototype"]}
         />
         <InfoBlock
           title="Departments"
@@ -1828,6 +1825,19 @@ function SettingsModule() {
         />
       </div>
     </Panel>
+  );
+}
+
+function MedBaseLogo({ compact = false }: { compact?: boolean }) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <img
+        alt=""
+        className={compact ? "h-8 w-auto" : "h-10 w-auto"}
+        src="/medbase-logo.svg"
+      />
+      <span className="sr-only">MedBase</span>
+    </span>
   );
 }
 
