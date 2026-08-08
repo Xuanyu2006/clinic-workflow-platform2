@@ -123,6 +123,16 @@ const rolePermissions: Record<Role, Module[]> = {
   Therapist: ["Dashboard", "Scheduling", "Tasks", "Messages", "Communication"],
 };
 
+const moduleIconLabels: Record<Module, string> = {
+  Dashboard: "##",
+  Scheduling: "[]",
+  Tasks: ":-",
+  Messages: "[]",
+  Communication: "()",
+  Analytics: "||",
+  Settings: "o-",
+};
+
 const departmentOptions = [
   "Front Desk",
   "Clinical Operations",
@@ -130,13 +140,6 @@ const departmentOptions = [
   "Therapy",
   "SNF Coordination",
   "Administration",
-];
-
-const staffOnShift = [
-  { name: "Demo Staff A", role: "Front Desk", shift: "7:30 AM - 4:00 PM" },
-  { name: "Demo Staff B", role: "Scheduler", shift: "8:00 AM - 5:00 PM" },
-  { name: "Demo Staff C", role: "Nurse", shift: "7:00 AM - 3:30 PM" },
-  { name: "Demo Staff D", role: "Therapist", shift: "9:00 AM - 6:00 PM" },
 ];
 
 const staffDirectory: { name: string; role: Role; department: string }[] = [
@@ -147,27 +150,6 @@ const staffDirectory: { name: string; role: Role; department: string }[] = [
   { name: "Demo Scheduler", role: "Scheduler", department: "Scheduling" },
   { name: "Demo Therapist", role: "Therapist", department: "Therapy" },
   { name: "Demo Office Manager", role: "Office Manager", department: "Administration" },
-];
-
-const todayAppointments = [
-  {
-    time: "8:30 AM",
-    label: "Demo appointment A",
-    location: "Outpatient Clinic",
-    status: "Confirmed",
-  },
-  {
-    time: "10:00 AM",
-    label: "Demo appointment B",
-    location: "SNF Wing",
-    status: "Forms pending",
-  },
-  {
-    time: "1:15 PM",
-    label: "Demo appointment C",
-    location: "Outpatient Clinic",
-    status: "Reminder queued",
-  },
 ];
 
 const initialTasks: Task[] = [
@@ -302,18 +284,6 @@ const initialChats: TeamChat[] = [
       },
     ],
   },
-];
-
-const recentActivity = [
-  "Demo schedule was updated by Scheduler role.",
-  "A task moved from Pending Approval to Approved.",
-  "Daily reminder posted to team communication center.",
-];
-
-const notifications = [
-  "2 demo tasks require attention.",
-  "1 shift note is waiting for review.",
-  "Monthly staffing view is ready to review.",
 ];
 
 const analytics = [
@@ -595,67 +565,77 @@ export function MedBaseDashboard() {
   }
 
   return (
-    <div className="min-h-dvh bg-background text-foreground">
-      <DemoBanner />
-      <header className="border-b border-border bg-white">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-5 py-5 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase text-primary">
-              Med Base
-            </p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-normal">
-              Healthcare operations command center
-            </h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Signed in as {userEmail} - {role}
-            </p>
+    <div className="min-h-dvh bg-[#f4f6f8] text-foreground">
+      <header className="border-b border-[#dfe6ee] bg-white">
+        <div className="flex min-h-20 w-full flex-col gap-4 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-4">
+            <MedBaseLogo compact />
+            <div>
+              <h1 className="text-2xl font-semibold tracking-normal">Med Base</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Signed in as {userEmail} - {role}
+              </p>
+              <p className="mt-1 text-xs font-medium text-primary">
+                Prototype - Demonstration Only - No Real Patient Data
+              </p>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={() => setActiveModule("Scheduling")}>
-              New schedule item
+          <div className="flex flex-wrap gap-3">
+            <Button className="gap-2" onClick={() => setActiveModule("Scheduling")}>
+              <span className="text-lg leading-none">+</span>
+              New Schedule Item
             </Button>
-            <Button variant="secondary" onClick={() => setActiveModule("Tasks")}>
-              Review tasks
+            <Button
+              className="gap-2"
+              variant="secondary"
+              onClick={() => setActiveModule("Tasks")}
+            >
+              <span className="text-base leading-none">[]</span>
+              Review Tasks
             </Button>
-            <Button variant="secondary" onClick={signOut}>
-              Log out
+            <Button className="gap-2" variant="secondary" onClick={signOut}>
+              <span className="text-base leading-none">-&gt;</span>
+              Logout
             </Button>
           </div>
         </div>
       </header>
 
-      <div className="mx-auto grid w-full max-w-7xl gap-6 px-5 py-6 lg:grid-cols-[250px_minmax(0,1fr)]">
-        <aside className="lg:sticky lg:top-6 lg:self-start">
-          <nav className="grid gap-2">
+      <div className="grid min-h-[calc(100dvh-81px)] lg:grid-cols-[280px_minmax(0,1fr)]">
+        <aside className="border-r border-[#dfe6ee] bg-white px-5 py-8">
+          <nav className="grid gap-4">
             {allowedModules.map((module) => (
               <button
                 key={module}
-                className={`rounded-md px-4 py-3 text-left text-sm font-medium transition ${
+                className={`grid grid-cols-[32px_minmax(0,1fr)_4px] items-center gap-3 rounded-lg px-4 py-4 text-left text-base font-semibold transition ${
                   activeModule === module
-                    ? "bg-primary text-primary-foreground"
-                    : "border border-border bg-white text-muted-foreground hover:bg-muted"
+                    ? "bg-primary/10 text-primary"
+                    : "text-slate-700 hover:bg-slate-50"
                 }`}
                 type="button"
                 onClick={() => setActiveModule(module)}
               >
-                {module}
+                <span className="text-xl font-semibold text-slate-500">
+                  {moduleIconLabels[module]}
+                </span>
+                <span>{module}</span>
+                <span
+                  className={`h-6 rounded-full ${
+                    activeModule === module ? "bg-primary" : "bg-transparent"
+                  }`}
+                />
               </button>
             ))}
           </nav>
-          <div className="mt-4 rounded-lg border border-border bg-white p-4 text-sm text-muted-foreground">
-            Role-based navigation is mocked for architecture planning.
+          <div className="mt-8 rounded-lg border border-[#dfe6ee] bg-[#f8fafc] p-4 text-sm leading-6 text-muted-foreground">
+            Role-based navigation is mocked for Med Base architecture planning.
           </div>
         </aside>
 
-        <main className="grid gap-6">
+        <main className="grid gap-6 px-6 py-8 xl:px-10">
           {activeModule === "Dashboard" && (
             <DashboardModule
-              notifications={notifications}
-              recentActivity={recentActivity}
               setActiveModule={setActiveModule}
-              staffOnShift={staffOnShift}
-              tasks={tasks}
-              todayAppointments={todayAppointments}
             />
           )}
           {activeModule === "Scheduling" && (
@@ -1276,95 +1256,236 @@ function AuthScreen({
 }
 
 function DashboardModule({
-  notifications,
-  recentActivity,
   setActiveModule,
-  staffOnShift,
-  tasks,
-  todayAppointments,
 }: {
-  notifications: string[];
-  recentActivity: string[];
   setActiveModule: (module: Module) => void;
-  staffOnShift: { name: string; role: string; shift: string }[];
-  tasks: Task[];
-  todayAppointments: {
-    time: string;
-    label: string;
-    location: string;
-    status: string;
-  }[];
 }) {
-  const pendingTasks = tasks.filter((task) =>
-    ["Pending Approval", "Approved", "In Progress"].includes(task.status),
-  );
-  const overdueTasks = tasks.filter((task) => task.status === "Overdue");
+  const dashboardAppointments = [
+    {
+      time: "09:00 AM",
+      title: "Jordan Avery",
+      subtitle: "Pre-visit forms pending",
+      tag: "Primary Care",
+    },
+    {
+      time: "10:30 AM",
+      title: "Maya Chen",
+      subtitle: "Reminder confirmed by text",
+      tag: "Pediatrics",
+    },
+    {
+      time: "01:15 PM",
+      title: "Noah Bennett",
+      subtitle: "Insurance verification queued",
+      tag: "Cardiology",
+    },
+    {
+      time: "03:45 PM",
+      title: "Elena Brooks",
+      subtitle: "Follow-up scheduling note added",
+      tag: "General Med",
+    },
+  ];
+
+  const dashboardNotifications = [
+    {
+      title: "Two appointments need reminder review before noon.",
+      time: "Just Now",
+      tone: "urgent",
+    },
+    {
+      title: "New group message summary is waiting for task approval.",
+      time: "30 minutes ago",
+      tone: "normal",
+    },
+    {
+      title: "Shift note posted for front desk coverage.",
+      time: "1 hour ago",
+      tone: "normal",
+    },
+  ];
+
+  const rosterRows = [
+    {
+      title: "Dr. Priya Foster",
+      subtitle: "On duty since 7:45 AM",
+      tag: "Primary Care",
+      active: true,
+    },
+    {
+      title: "Lena Ortiz, RN",
+      subtitle: "On duty since 8:00 AM",
+      tag: "Cardiology",
+      active: true,
+    },
+    {
+      title: "Marcus Reid, MA",
+      subtitle: "Rooming support active",
+      tag: "Outpatient",
+      active: true,
+    },
+    {
+      title: "Avery Singh",
+      subtitle: "Next shift starts at 12:00 PM",
+      tag: "Radiology",
+      active: false,
+    },
+  ];
+
+  const activityRows = [
+    {
+      title: "Front desk updated appointment status",
+      subtitle: "Reminder outcome changed to confirmed",
+      time: "8 mins ago",
+    },
+    {
+      title: "Scheduler moved a follow-up visit",
+      subtitle: "Moved from 2:30 PM to 3:45 PM",
+      time: "25 mins ago",
+    },
+    {
+      title: "Digital intake packet completed",
+      subtitle: "Ready for staff review before check-in",
+      time: "1 hour ago",
+    },
+    {
+      title: "Insurance verification marked reviewed",
+      subtitle: "Office manager approved workflow note",
+      time: "2 hours ago",
+    },
+  ];
 
   return (
-    <div className="grid gap-6">
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Today's appointments" value={todayAppointments.length} />
-        <MetricCard label="Staff on shift" value={staffOnShift.length} />
-        <MetricCard label="Pending tasks" value={pendingTasks.length} />
-        <MetricCard label="Overdue tasks" value={overdueTasks.length} />
+    <div className="grid gap-8">
+      <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+        <DashboardStatCard
+          icon="[]"
+          label="Today's Appointments"
+          value="12"
+        />
+        <DashboardStatCard icon="+o" label="Staff on Shift" value="8" />
+        <DashboardStatCard icon="[]" label="Pending Tasks" value="5" />
+        <DashboardStatCard
+          danger
+          icon="!"
+          label="Overdue Tasks"
+          value="3"
+        />
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <Panel
+      <section className="grid gap-8 xl:grid-cols-2">
+        <DashboardPanel
+          badge="12"
+          cta="View Calendar"
+          onCta={() => setActiveModule("Scheduling")}
           title="Today's Appointments"
-          description="Operational appointment overview using fictional demonstration data."
         >
-          <div className="grid gap-3">
-            {todayAppointments.map((appointment) => (
+          <div className="grid gap-4">
+            {dashboardAppointments.map((appointment) => (
               <div
-                key={`${appointment.time}-${appointment.label}`}
-                className="grid gap-2 rounded-lg border border-border p-4 md:grid-cols-[100px_1fr_160px]"
+                key={appointment.time}
+                className="grid items-center gap-4 rounded-lg bg-[#f0f0f0] p-4 md:grid-cols-[118px_minmax(0,1fr)_auto]"
               >
-                <p className="font-medium">{appointment.time}</p>
+                <span className="rounded-md bg-primary/10 px-3 py-2 text-center text-sm font-bold text-primary">
+                  {appointment.time}
+                </span>
                 <div>
-                  <p className="font-medium">{appointment.label}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {appointment.location}
-                  </p>
+                  <p className="text-lg font-semibold">{appointment.title}</p>
+                  <p className="text-base text-muted-foreground">{appointment.subtitle}</p>
                 </div>
-                <StatusPill>{appointment.status}</StatusPill>
+                <StatusPill>{appointment.tag}</StatusPill>
               </div>
             ))}
           </div>
-        </Panel>
+        </DashboardPanel>
 
-        <Panel title="Quick Actions" description="Jump into common workflow areas.">
-          <div className="grid gap-3">
-            {(["Scheduling", "Messages", "Tasks", "Communication"] as Module[]).map(
-              (module) => (
-                <Button
-                  key={module}
-                  className="justify-start"
-                  variant="secondary"
-                  onClick={() => setActiveModule(module)}
+        <DashboardPanel
+          badge="3"
+          cta="Mark All as Read"
+          title="Notifications"
+        >
+          <div className="grid gap-4">
+            {dashboardNotifications.map((notification) => (
+              <div
+                key={notification.title}
+                className={`grid grid-cols-[32px_minmax(0,1fr)] gap-3 rounded-lg p-4 ${
+                  notification.tone === "urgent"
+                    ? "bg-red-50 text-red-700"
+                    : "bg-[#f0f0f0] text-foreground"
+                }`}
+              >
+                <span
+                  className={`grid size-6 place-items-center rounded-full border-2 text-xs font-bold ${
+                    notification.tone === "urgent"
+                      ? "border-red-500 text-red-500"
+                      : "border-primary text-primary"
+                  }`}
                 >
-                  Open {module}
-                </Button>
-              ),
-            )}
+                  !
+                </span>
+                <div>
+                  <p className="text-base font-semibold">{notification.title}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{notification.time}</p>
+                </div>
+              </div>
+            ))}
           </div>
-        </Panel>
+        </DashboardPanel>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-3">
-        <Panel title="Staff Currently On Shift" description="Mock staffing roster.">
-          <StackedList
-            items={staffOnShift.map(
-              (staff) => `${staff.name} - ${staff.role} - ${staff.shift}`,
-            )}
-          />
-        </Panel>
-        <Panel title="Recent Activity" description="Operational activity only.">
-          <StackedList items={recentActivity} />
-        </Panel>
-        <Panel title="Notifications" description="Workflow alerts and reminders.">
-          <StackedList items={notifications} />
-        </Panel>
+      <section className="grid gap-8 xl:grid-cols-2">
+        <DashboardPanel badge="8" cta="Manage Roster" title="Staff on Shift">
+          <div className="grid gap-4">
+            {rosterRows.map((row) => (
+              <div
+                key={row.title}
+                className="grid items-center gap-4 rounded-lg bg-[#f0f0f0] p-4 md:grid-cols-[minmax(0,1fr)_auto]"
+              >
+                <div className="grid grid-cols-[18px_minmax(0,1fr)] gap-3">
+                  <span
+                    className={`mt-2 size-3 rounded-full ${
+                      row.active ? "bg-emerald-500" : "bg-slate-500"
+                    }`}
+                  />
+                  <div>
+                    <p className="text-lg font-semibold">{row.title}</p>
+                    <p className="text-base text-muted-foreground">{row.subtitle}</p>
+                  </div>
+                </div>
+                <StatusPill
+                  className={
+                    row.active
+                      ? "bg-emerald-50 text-emerald-700 ring-emerald-100"
+                      : "bg-slate-100 text-slate-600 ring-slate-200"
+                  }
+                >
+                  {row.tag}
+                </StatusPill>
+              </div>
+            ))}
+          </div>
+        </DashboardPanel>
+
+        <DashboardPanel
+          cta="View Audit Log"
+          onCta={() => setActiveModule("Analytics")}
+          title="Recent Activity"
+        >
+          <div className="grid gap-4">
+            {activityRows.map((row) => (
+              <div
+                key={row.title}
+                className="grid gap-3 rounded-lg bg-[#f0f0f0] p-4 md:grid-cols-[minmax(0,1fr)_130px]"
+              >
+                <div>
+                  <p className="text-base font-semibold">{row.title}</p>
+                  <p className="mt-1 text-base text-muted-foreground">{row.subtitle}</p>
+                </div>
+                <p className="text-right text-sm text-muted-foreground">{row.time}</p>
+              </div>
+            ))}
+          </div>
+        </DashboardPanel>
       </section>
     </div>
   );
@@ -1871,12 +1992,76 @@ function Panel({
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: ReactNode }) {
+function DashboardStatCard({
+  danger = false,
+  icon,
+  label,
+  value,
+}: {
+  danger?: boolean;
+  icon: string;
+  label: string;
+  value: string;
+}) {
   return (
-    <div className="rounded-lg border border-border bg-white p-4 shadow-sm">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="mt-2 text-3xl font-semibold">{value}</p>
-    </div>
+    <article className="grid min-h-28 grid-cols-[minmax(0,1fr)_64px] items-center gap-4 rounded-xl border border-[#dfe6ee] bg-white p-6 shadow-sm">
+      <div>
+        <p className="text-base font-semibold text-muted-foreground">{label}</p>
+        <p
+          className={`mt-3 text-5xl font-semibold leading-none ${
+            danger ? "text-red-500" : "text-slate-900"
+          }`}
+        >
+          {value}
+        </p>
+      </div>
+      <span
+        className={`grid size-14 place-items-center rounded-full text-xl font-bold ${
+          danger ? "bg-red-50 text-red-500" : "bg-primary/10 text-primary"
+        }`}
+      >
+        {icon}
+      </span>
+    </article>
+  );
+}
+
+function DashboardPanel({
+  badge,
+  children,
+  cta,
+  onCta,
+  title,
+}: {
+  badge?: string;
+  children: ReactNode;
+  cta?: string;
+  onCta?: () => void;
+  title: string;
+}) {
+  return (
+    <section className="rounded-xl border border-[#dfe6ee] bg-white p-6 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#dfe6ee] pb-5">
+        <div className="flex items-center gap-3">
+          <h2 className="text-2xl font-semibold">{title}</h2>
+          {badge ? (
+            <span className="rounded-full bg-primary/10 px-3 py-1 text-sm font-bold text-primary">
+              {badge}
+            </span>
+          ) : null}
+        </div>
+        {cta ? (
+          <button
+            className="text-base font-semibold text-primary transition hover:opacity-80"
+            type="button"
+            onClick={onCta}
+          >
+            {cta}
+          </button>
+        ) : null}
+      </div>
+      <div className="pt-5">{children}</div>
+    </section>
   );
 }
 
