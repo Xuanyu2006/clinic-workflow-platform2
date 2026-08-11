@@ -430,12 +430,13 @@ export function MedBaseDashboard() {
       return;
     }
 
+    const activeClient = client;
     let isMounted = true;
 
     async function loadSession() {
       const {
         data: { session },
-      } = await client.auth.getSession();
+      } = await activeClient.auth.getSession();
 
       if (!isMounted) {
         return;
@@ -452,7 +453,7 @@ export function MedBaseDashboard() {
 
     const {
       data: { subscription },
-    } = client.auth.onAuthStateChange((_event, session) => {
+    } = activeClient.auth.onAuthStateChange((_event, session) => {
       if (!isMounted) {
         return;
       }
