@@ -423,7 +423,9 @@ export function MedBaseDashboard() {
   const allowedModules = rolePermissions[role];
 
   useEffect(() => {
-    if (!supabase) {
+    const client = supabase;
+
+    if (!client) {
       setAuthStatus("signed-out");
       return;
     }
@@ -433,7 +435,7 @@ export function MedBaseDashboard() {
     async function loadSession() {
       const {
         data: { session },
-      } = await supabase.auth.getSession();
+      } = await client.auth.getSession();
 
       if (!isMounted) {
         return;
@@ -450,7 +452,7 @@ export function MedBaseDashboard() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = client.auth.onAuthStateChange((_event, session) => {
       if (!isMounted) {
         return;
       }
