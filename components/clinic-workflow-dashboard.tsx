@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { User } from "@supabase/supabase-js";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { createOptionalClient } from "@/lib/supabase/client";
 
@@ -470,6 +471,7 @@ export function MedBaseDashboard() {
       isMounted = false;
       subscription.unsubscribe();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase]);
 
   async function loadAuthenticatedUser(user: User) {
@@ -2239,10 +2241,13 @@ function SettingsModule() {
 function MedBaseLogo({ compact = false }: { compact?: boolean }) {
   return (
     <span className="inline-flex items-center gap-2">
-      <img
+      <Image
         alt="Med Base"
         className={compact ? "h-14 w-auto" : "h-16 w-auto"}
+        height={compact ? 56 : 64}
+        priority={compact}
         src="/medbase-logo.png"
+        width={compact ? 168 : 192}
       />
       <span className="sr-only">Med Base</span>
     </span>
