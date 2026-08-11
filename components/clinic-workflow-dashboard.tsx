@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import type { User } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
+import { createOptionalClient } from "@/lib/supabase/client";
 
 type Role =
   | "Administrator"
@@ -85,6 +87,15 @@ type SummarySuggestion = {
 };
 
 const previewBanner = "Med Base Preview - No Real Patient Data";
+const previewOrganizationId = "00000000-0000-0000-0000-000000000001";
+const restrictedDataWarning =
+  "Do not enter real patient data. Remove identifiers or clinical details before sending.";
+
+function containsRestrictedPatientData(value: string) {
+  return /\b(dob|date of birth|ssn|social security|mrn|medical record|diagnosis|diagnosed|treatment|prescription|insurance id|policy number)\b/i.test(
+    value,
+  );
+}
 
 const roles: Role[] = [
   "Administrator",
@@ -375,11 +386,16 @@ const statusStyles: Record<TaskStatus, string> = {
 };
 
 export function MedBaseDashboard() {
+  const supabase = useMemo(() => createOptionalClient(), []);
   const [userEmail, setUserEmail] = useState("");
   const [role, setRole] = useState<Role>("Administrator");
   const [authMode, setAuthMode] = useState<"login" | "create">("login");
   const [authView, setAuthView] = useState<"landing" | "auth">("landing");
   const [authError, setAuthError] = useState("");
+  const [authNotice, setAuthNotice] = useState("");
+  const [authStatus, setAuthStatus] = useState<"checking" | "signed-in" | "signed-out">(
+    "checking",
+  );
   const [authForm, setAuthForm] = useState({
     email: "",
     password: "",
@@ -395,6 +411,7 @@ export function MedBaseDashboard() {
   const [teamChats, setTeamChats] = useState(initialChats);
   const [selectedChatId, setSelectedChatId] = useState(initialChats[0]?.id ?? "");
   const [chatDraft, setChatDraft] = useState("");
+  const [messageError, setMessageError] = useState("");
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupParticipants, setNewGroupParticipants] = useState<string[]>([
     "Dr. Priya Foster",
@@ -405,7 +422,88 @@ export function MedBaseDashboard() {
     useState<SummarySuggestion | null>(null);
   const allowedModules = rolePermissions[role];
 
-  function handleAuth() {
+  useEffect(() => {
+    if (!supabase) {
+      setAuthStatus("signed-out");
+      return;
+    }
+
+    let isMounted = true;
+
+    async function loadSession() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!isMounted) {
+        return;
+      }
+
+      if (session?.user) {
+        await loadAuthenticatedUser(session.user);
+      } else {
+        setAuthStatus("signed-out");
+      }
+    }
+
+    loadSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!isMounted) {
+        return;
+      }
+
+      if (session?.user) {
+        void loadAuthenticatedUser(session.user);
+      } else {
+        setUserEmail("");
+        setAuthStatus("signed-out");
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
+
+  async function loadAuthenticatedUser(user: User) {
+    const email = user.email ?? "";
+    setUserEmail(email);
+    setAuthStatus("signed-in");
+    setAuthView("landing");
+
+    if (!supabase) {
+      return;
+    }
+
+    const { data } = await supabase
+      .from("user_profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (data?.role) {
+      setRole(data.role as Role);
+    }
+  }
+
+  async function ensureUserProfile(user: User, selectedRole: Role) {
+    if (!supabase || !user.email) {
+      return;
+    }
+
+    await supabase.from("user_profiles").upsert({
+      id: user.id,
+      organization_id: previewOrganizationId,
+      email: user.email,
+      role: selectedRole,
+    });
+  }
+
+  async function handleAuth() {
     if (!authForm.email || !authForm.password) {
       setAuthError("Enter an email and password to continue.");
       return;
@@ -421,15 +519,83 @@ export function MedBaseDashboard() {
       return;
     }
 
-    setUserEmail(authForm.email);
+    if (!supabase) {
+      setUserEmail(authForm.email);
+      setAuthNotice(
+        "Preview mode is active because Supabase environment variables are not configured yet.",
+      );
+      setAuthStatus("signed-in");
+      setAuthError("");
+      setAuthForm({ email: "", password: "", confirmPassword: "" });
+      setAuthView("landing");
+      setActiveModule("Dashboard");
+      return;
+    }
+
     setAuthError("");
+    setAuthNotice("");
+
+    if (authMode === "create") {
+      const { data, error } = await supabase.auth.signUp({
+        email: authForm.email,
+        password: authForm.password,
+        options: {
+          data: {
+            role,
+            organization_id: previewOrganizationId,
+          },
+        },
+      });
+
+      if (error) {
+        setAuthError(error.message);
+        return;
+      }
+
+      if (data.user) {
+        await ensureUserProfile(data.user, role);
+      }
+
+      if (!data.session) {
+        setAuthNotice(
+          "Account created. Check email verification settings in Supabase if login is not immediate.",
+        );
+        setAuthForm({ email: "", password: "", confirmPassword: "" });
+        return;
+      }
+
+      await loadAuthenticatedUser(data.session.user);
+      setAuthForm({ email: "", password: "", confirmPassword: "" });
+      setActiveModule("Dashboard");
+      return;
+    }
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: authForm.email,
+      password: authForm.password,
+    });
+
+    if (error) {
+      setAuthError(error.message);
+      return;
+    }
+
+    if (data.user) {
+      await ensureUserProfile(data.user, role);
+      await loadAuthenticatedUser(data.user);
+    }
+
     setAuthForm({ email: "", password: "", confirmPassword: "" });
-    setAuthView("landing");
     setActiveModule("Dashboard");
   }
 
-  function signOut() {
+  async function signOut() {
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
+
     setUserEmail("");
+    setAuthStatus("signed-out");
     setActiveModule("Dashboard");
     setChatDraft("");
     setSummarySuggestion(null);
@@ -443,6 +609,11 @@ export function MedBaseDashboard() {
 
   function sendTeamMessage() {
     if (!selectedChatId || !chatDraft.trim()) {
+      return;
+    }
+
+    if (containsRestrictedPatientData(chatDraft)) {
+      setMessageError(restrictedDataWarning);
       return;
     }
 
@@ -466,11 +637,13 @@ export function MedBaseDashboard() {
       ),
     );
     setChatDraft("");
+    setMessageError("");
   }
 
   function selectChat(chatId: string) {
     setSelectedChatId(chatId);
     setSummarySuggestion(null);
+    setMessageError("");
   }
 
   function addParticipantToChat() {
@@ -587,17 +760,32 @@ export function MedBaseDashboard() {
     });
   }, [taskFilter, tasks]);
 
+  if (authStatus === "checking") {
+    return (
+      <main className="flex min-h-dvh items-center justify-center bg-background px-5 text-foreground">
+        <section className="rounded-lg border border-border bg-white p-6 text-center shadow-sm">
+          <MedBaseLogo />
+          <p className="mt-4 text-sm text-muted-foreground">
+            Checking secure session...
+          </p>
+        </section>
+      </main>
+    );
+  }
+
   if (!userEmail && authView === "landing") {
     return (
       <LandingPage
         openCreateAccount={() => {
           setAuthMode("create");
           setAuthError("");
+          setAuthNotice("");
           setAuthView("auth");
         }}
         openLogin={() => {
           setAuthMode("login");
           setAuthError("");
+          setAuthNotice("");
           setAuthView("auth");
         }}
       />
@@ -608,10 +796,13 @@ export function MedBaseDashboard() {
     return (
       <AuthScreen
         authError={authError}
+        authNotice={authNotice}
         authForm={authForm}
         authMode={authMode}
+        isSupabaseConfigured={Boolean(supabase)}
         onBack={() => {
           setAuthError("");
+          setAuthNotice("");
           setAuthView("landing");
         }}
         role={role}
@@ -619,6 +810,7 @@ export function MedBaseDashboard() {
         setAuthMode={(mode) => {
           setAuthMode(mode);
           setAuthError("");
+          setAuthNotice("");
         }}
         setRole={setRole}
         submit={handleAuth}
@@ -728,6 +920,7 @@ export function MedBaseDashboard() {
               participantToAdd={participantToAdd}
               selectChat={selectChat}
               selectedChatId={selectedChatId}
+              messageError={messageError}
               sendTeamMessage={sendTeamMessage}
               setChatDraft={setChatDraft}
               setNewGroupName={setNewGroupName}
@@ -1172,6 +1365,8 @@ function AuthScreen({
   authError,
   authForm,
   authMode,
+  authNotice,
+  isSupabaseConfigured,
   onBack,
   role,
   setAuthForm,
@@ -1182,12 +1377,14 @@ function AuthScreen({
   authError: string;
   authForm: { email: string; password: string; confirmPassword: string };
   authMode: "login" | "create";
+  authNotice: string;
+  isSupabaseConfigured: boolean;
   onBack: () => void;
   role: Role;
   setAuthForm: (form: { email: string; password: string; confirmPassword: string }) => void;
   setAuthMode: (mode: "login" | "create") => void;
   setRole: (role: Role) => void;
-  submit: () => void;
+  submit: () => void | Promise<void>;
 }) {
   const [showPassword, setShowPassword] = useState(false);
   const isCreate = authMode === "create";
@@ -1211,6 +1408,11 @@ function AuthScreen({
         </h1>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
           Role-based access for Med Base workflow coordination.
+        </p>
+        <p className="mt-3 rounded-md bg-primary/10 px-3 py-2 text-xs leading-5 text-primary">
+          {isSupabaseConfigured
+            ? "Supabase authentication is active."
+            : "Supabase keys are not configured yet. This form will run in preview mode until keys are added."}
         </p>
 
         <div className="mt-5 grid grid-cols-2 rounded-md border border-border bg-muted p-1">
@@ -1302,6 +1504,12 @@ function AuthScreen({
           {authError ? (
             <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
               {authError}
+            </p>
+          ) : null}
+
+          {authNotice ? (
+            <p className="rounded-md bg-primary/10 px-3 py-2 text-sm text-primary">
+              {authNotice}
             </p>
           ) : null}
 
@@ -1726,6 +1934,7 @@ function MessagesModule({
   chatDraft,
   createGroupChat,
   generateChatSummary,
+  messageError,
   newGroupName,
   newGroupParticipants,
   participantToAdd,
@@ -1745,6 +1954,7 @@ function MessagesModule({
   chatDraft: string;
   createGroupChat: () => void;
   generateChatSummary: () => void;
+  messageError: string;
   newGroupName: string;
   newGroupParticipants: string[];
   participantToAdd: string;
@@ -1877,12 +2087,20 @@ function MessagesModule({
                 <textarea
                   className="min-h-28 rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                   value={chatDraft}
-                  onChange={(event) => setChatDraft(event.target.value)}
+                  onChange={(event) => {
+                    setChatDraft(event.target.value);
+                    setMessageError("");
+                  }}
                 />
               </label>
               <p className="text-xs text-muted-foreground">
                 Do not enter real patient data.
               </p>
+              {messageError ? (
+                <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                  {messageError}
+                </p>
+              ) : null}
               <div className="flex flex-wrap gap-2">
                 <Button onClick={sendTeamMessage}>Send message</Button>
                 <Button variant="secondary" onClick={generateChatSummary}>

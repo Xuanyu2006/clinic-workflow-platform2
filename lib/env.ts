@@ -1,18 +1,16 @@
 type PublicEnvKey =
   "NEXT_PUBLIC_SUPABASE_URL" | "NEXT_PUBLIC_SUPABASE_ANON_KEY";
 
-function readRequiredEnv(key: PublicEnvKey) {
-  const value = process.env[key];
-
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${key}`);
-  }
-
-  return value;
+function readOptionalEnv(key: PublicEnvKey) {
+  return process.env[key] ?? "";
 }
+
+const supabaseUrl = readOptionalEnv("NEXT_PUBLIC_SUPABASE_URL");
+const supabaseAnonKey = readOptionalEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
 
 export const env = {
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
-  supabaseUrl: readRequiredEnv("NEXT_PUBLIC_SUPABASE_URL"),
-  supabaseAnonKey: readRequiredEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+  supabaseUrl,
+  supabaseAnonKey,
+  isSupabaseConfigured: Boolean(supabaseUrl && supabaseAnonKey),
 };
