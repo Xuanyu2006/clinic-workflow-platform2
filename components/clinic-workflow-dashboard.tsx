@@ -11,7 +11,14 @@ type Role =
   | "Front Desk"
   | "Office Manager"
   | "Scheduler"
-  | "Therapist";
+  | "Therapist"
+  | "Patient Coordinator"
+  | "Referral Coordinator"
+  | "Care Coordinator"
+  | "SNF Coordinator"
+  | "Records Coordinator"
+  | "Operations Lead"
+  | "Receptionist";
 
 type Module =
   | "Dashboard"
@@ -77,7 +84,7 @@ type SummarySuggestion = {
   dueDate: string;
 };
 
-const demoBanner = "Med Base Prototype - Demonstration Only - No Real Patient Data";
+const previewBanner = "Med Base Preview - No Real Patient Data";
 
 const roles: Role[] = [
   "Administrator",
@@ -88,6 +95,13 @@ const roles: Role[] = [
   "Office Manager",
   "Scheduler",
   "Therapist",
+  "Patient Coordinator",
+  "Referral Coordinator",
+  "Care Coordinator",
+  "SNF Coordinator",
+  "Records Coordinator",
+  "Operations Lead",
+  "Receptionist",
 ];
 
 const rolePermissions: Record<Role, Module[]> = {
@@ -121,6 +135,45 @@ const rolePermissions: Record<Role, Module[]> = {
   ],
   Scheduler: ["Dashboard", "Scheduling", "Tasks", "Messages", "Communication"],
   Therapist: ["Dashboard", "Scheduling", "Tasks", "Messages", "Communication"],
+  "Patient Coordinator": [
+    "Dashboard",
+    "Scheduling",
+    "Tasks",
+    "Messages",
+    "Communication",
+  ],
+  "Referral Coordinator": [
+    "Dashboard",
+    "Scheduling",
+    "Tasks",
+    "Messages",
+    "Communication",
+  ],
+  "Care Coordinator": [
+    "Dashboard",
+    "Scheduling",
+    "Tasks",
+    "Messages",
+    "Communication",
+  ],
+  "SNF Coordinator": [
+    "Dashboard",
+    "Scheduling",
+    "Tasks",
+    "Messages",
+    "Communication",
+  ],
+  "Records Coordinator": ["Dashboard", "Tasks", "Messages", "Communication"],
+  "Operations Lead": [
+    "Dashboard",
+    "Scheduling",
+    "Tasks",
+    "Messages",
+    "Communication",
+    "Analytics",
+    "Settings",
+  ],
+  Receptionist: ["Dashboard", "Scheduling", "Tasks", "Messages", "Communication"],
 };
 
 const moduleIconLabels: Record<Module, string> = {
@@ -139,25 +192,34 @@ const departmentOptions = [
   "Scheduling",
   "Therapy",
   "SNF Coordination",
+  "Care Coordination",
+  "Referrals",
+  "Records",
   "Administration",
 ];
 
 const staffDirectory: { name: string; role: Role; department: string }[] = [
-  { name: "Demo Physician", role: "Physician", department: "Clinical Operations" },
-  { name: "Demo Nurse", role: "Nurse", department: "Clinical Operations" },
-  { name: "Demo Medical Assistant", role: "Medical Assistant", department: "Clinic Support" },
-  { name: "Demo Front Desk", role: "Front Desk", department: "Front Desk" },
-  { name: "Demo Scheduler", role: "Scheduler", department: "Scheduling" },
-  { name: "Demo Therapist", role: "Therapist", department: "Therapy" },
-  { name: "Demo Office Manager", role: "Office Manager", department: "Administration" },
+  { name: "Dr. Priya Foster", role: "Physician", department: "Clinical Operations" },
+  { name: "Lena Ortiz, RN", role: "Nurse", department: "Clinical Operations" },
+  { name: "Marcus Reid, MA", role: "Medical Assistant", department: "Clinic Support" },
+  { name: "Sofia Patel", role: "Front Desk", department: "Front Desk" },
+  { name: "Evan Brooks", role: "Scheduler", department: "Scheduling" },
+  { name: "Talia Nguyen", role: "Therapist", department: "Therapy" },
+  { name: "Naomi Reed", role: "Office Manager", department: "Administration" },
+  { name: "Amira Khan", role: "Patient Coordinator", department: "Care Coordination" },
+  { name: "Miles Carter", role: "Referral Coordinator", department: "Referrals" },
+  { name: "Renee Park", role: "SNF Coordinator", department: "SNF Coordination" },
+  { name: "Oliver Stone", role: "Records Coordinator", department: "Records" },
+  { name: "Harper Wells", role: "Operations Lead", department: "Administration" },
+  { name: "Camila Torres", role: "Receptionist", department: "Front Desk" },
 ];
 
 const initialTasks: Task[] = [
   {
     id: "TASK-001",
-    title: "Confirm demo afternoon schedule",
+    title: "Confirm afternoon schedule",
     description: "Review open appointment slots and notify assigned staff.",
-    assignedStaff: "Demo Staff B",
+    assignedStaff: "Evan Brooks",
     department: "Scheduling",
     priority: "Medium",
     dueDate: "Today 11:30 AM",
@@ -168,8 +230,8 @@ const initialTasks: Task[] = [
   {
     id: "TASK-002",
     title: "Review pending intake packets",
-    description: "Check which demo packets are incomplete before arrival.",
-    assignedStaff: "Demo Staff A",
+    description: "Check which intake packets are incomplete before arrival.",
+    assignedStaff: "Sofia Patel",
     department: "Front Desk",
     priority: "High",
     dueDate: "Today 10:30 AM",
@@ -181,7 +243,7 @@ const initialTasks: Task[] = [
     id: "TASK-003",
     title: "Post shift reminder",
     description: "Share a daily reminder in the internal team channel.",
-    assignedStaff: "Demo Staff C",
+    assignedStaff: "Lena Ortiz, RN",
     department: "Clinical Operations",
     priority: "Low",
     dueDate: "Today 3:00 PM",
@@ -232,22 +294,22 @@ const initialChats: TeamChat[] = [
     name: "Clinic Operations Group",
     type: "Group",
     participants: [
-      "Demo Physician",
-      "Demo Nurse",
-      "Demo Medical Assistant",
-      "Demo Front Desk",
+      "Dr. Priya Foster",
+      "Lena Ortiz, RN",
+      "Marcus Reid, MA",
+      "Sofia Patel",
     ],
     messages: [
       {
         id: "MSG-001",
-        author: "Demo Physician",
+        author: "Dr. Priya Foster",
         role: "Physician",
-        text: "Please confirm the demo afternoon room schedule and flag any operational delays.",
+        text: "Please confirm the afternoon room schedule and flag any operational delays.",
         time: "8:42 AM",
       },
       {
         id: "MSG-002",
-        author: "Demo Nurse",
+        author: "Lena Ortiz, RN",
         role: "Nurse",
         text: "Room coverage is being reviewed. No clinical decision is being made in this thread.",
         time: "8:49 AM",
@@ -258,13 +320,13 @@ const initialChats: TeamChat[] = [
     id: "CHAT-002",
     name: "Physician + Medical Assistant",
     type: "Direct",
-    participants: ["Demo Physician", "Demo Medical Assistant"],
+    participants: ["Dr. Priya Foster", "Marcus Reid, MA"],
     messages: [
       {
         id: "MSG-003",
-        author: "Demo Medical Assistant",
+        author: "Marcus Reid, MA",
         role: "Medical Assistant",
-        text: "The demo forms queue needs a front desk follow-up before the next appointment block.",
+        text: "The forms queue needs a front desk follow-up before the next appointment block.",
         time: "9:05 AM",
       },
     ],
@@ -273,13 +335,13 @@ const initialChats: TeamChat[] = [
     id: "CHAT-003",
     name: "SNF Coordination",
     type: "Group",
-    participants: ["Demo Nurse", "Demo Therapist", "Demo Scheduler"],
+    participants: ["Lena Ortiz, RN", "Talia Nguyen", "Evan Brooks"],
     messages: [
       {
         id: "MSG-004",
-        author: "Demo Therapist",
+        author: "Talia Nguyen",
         role: "Therapist",
-        text: "Please coordinate the demo SNF shift schedule handoff for the afternoon team.",
+        text: "Please coordinate the SNF shift schedule handoff for the afternoon team.",
         time: "9:20 AM",
       },
     ],
@@ -335,8 +397,8 @@ export function MedBaseDashboard() {
   const [chatDraft, setChatDraft] = useState("");
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupParticipants, setNewGroupParticipants] = useState<string[]>([
-    "Demo Physician",
-    "Demo Nurse",
+    "Dr. Priya Foster",
+    "Lena Ortiz, RN",
   ]);
   const [participantToAdd, setParticipantToAdd] = useState(staffDirectory[0]?.name ?? "");
   const [summarySuggestion, setSummarySuggestion] =
@@ -489,7 +551,7 @@ export function MedBaseDashboard() {
         dueDate: summarySuggestion.dueDate,
         status: "Pending Approval",
         notes:
-          "Generated from a mock team chat summary. Must be reviewed by a human.",
+          "Generated from a team chat summary. Must be reviewed by a human.",
         completionTimestamp: "",
       },
       ...current,
@@ -576,7 +638,7 @@ export function MedBaseDashboard() {
                 Signed in as {userEmail} - {role}
               </p>
               <p className="mt-1 text-xs font-medium text-primary">
-                Prototype - Demonstration Only - No Real Patient Data
+                Preview - No Real Patient Data
               </p>
             </div>
           </div>
@@ -628,7 +690,7 @@ export function MedBaseDashboard() {
             ))}
           </nav>
           <div className="mt-8 rounded-lg border border-[#dfe6ee] bg-[#f8fafc] p-4 text-sm leading-6 text-muted-foreground">
-            Role-based navigation is mocked for Med Base architecture planning.
+            Role-based navigation is configured for Med Base architecture planning.
           </div>
         </aside>
 
@@ -723,12 +785,12 @@ function LandingPage({
     "Role-based access",
     "Group coordination",
     "Review before action",
-    "Demo data only",
+    "Fictional records only",
   ];
 
   return (
     <main className="min-h-dvh bg-white text-foreground">
-      <DemoBanner />
+      <PreviewBanner />
       <header className="sticky top-0 z-10 border-b border-border bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
           <button
@@ -761,19 +823,19 @@ function LandingPage({
       >
         <div>
           <StatusPill className="bg-primary/10 text-primary ring-primary/20">
-            Prototype
+            Preview
           </StatusPill>
           <h1 className="mt-5 max-w-xl text-4xl font-semibold leading-tight tracking-normal md:text-5xl">
             Med Base coordinates healthcare operations without becoming an EHR
           </h1>
           <p className="mt-5 max-w-lg text-sm leading-7 text-muted-foreground">
-            A modular SaaS prototype for scheduling, staff messaging, reminders,
+            A modular SaaS platform for scheduling, staff messaging, reminders,
             forms, tasks, and operational visibility.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <Button onClick={openCreateAccount}>Start with a demo account</Button>
+            <Button onClick={openCreateAccount}>Create account</Button>
             <Button variant="secondary" onClick={openLogin}>
-              Login to prototype
+              Log in
             </Button>
           </div>
           <div className="mt-8 grid gap-4 text-sm sm:grid-cols-3">
@@ -857,7 +919,7 @@ function LandingPage({
           </StatusPill>
           <h2 className="mt-4 text-3xl font-semibold">Core modules</h2>
           <p className="mt-3 text-sm text-muted-foreground">
-            The prototype uses fictional data only.
+            The preview uses fictional data only.
           </p>
         </div>
         <div className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
@@ -1046,7 +1108,7 @@ function LandingPage({
               </StatusPill>
               <p className="mt-4 font-semibold">{item}</p>
               <p className="mt-2 text-sm text-muted-foreground">
-                Prototype workflow stage.
+                Preview workflow stage.
               </p>
             </div>
           ))}
@@ -1073,14 +1135,14 @@ function LandingPage({
             </h2>
             <div className="mt-6 grid gap-4">
               {[
-                "Easy to demo and expand",
+                "Easy to evaluate and expand",
                 "Role-based architecture",
                 "Supabase-ready foundation",
               ].map((item) => (
                 <div key={item} className="rounded-lg border border-border bg-white p-4">
                   <p className="font-semibold">{item}</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Built for production architecture while staying prototype-safe.
+                    Built for production architecture while protecting clinical scope.
                   </p>
                 </div>
               ))}
@@ -1094,7 +1156,7 @@ function LandingPage({
           <div>
             <MedBaseLogo compact />
             <p className="mt-3 max-w-sm leading-6 text-muted-foreground">
-              Prototype - Demonstration Only - No Real Patient Data.
+              Preview - No Real Patient Data.
             </p>
           </div>
           <InfoBlock title="Product" lines={["Features", "Integrations", "Roadmap"]} />
@@ -1133,7 +1195,7 @@ function AuthScreen({
   return (
     <main className="flex min-h-dvh items-center justify-center bg-background px-5 py-10 text-foreground">
       <section className="w-full max-w-md rounded-lg border border-border bg-white p-6 shadow-sm">
-        <DemoBanner />
+        <PreviewBanner />
         <button
           className="mt-5 text-sm font-medium text-muted-foreground hover:text-foreground"
           type="button"
@@ -1148,7 +1210,7 @@ function AuthScreen({
           {isCreate ? "Create account" : "Log in"}
         </h1>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          Prototype authentication for role-based workflow access.
+          Role-based access for Med Base workflow coordination.
         </p>
 
         <div className="mt-5 grid grid-cols-2 rounded-md border border-border bg-muted p-1">
@@ -1179,7 +1241,6 @@ function AuthScreen({
             <input
               autoComplete="email"
               className={inputClassName}
-              placeholder="Email address"
               type="email"
               value={authForm.email}
               onChange={(event) =>
@@ -1193,7 +1254,6 @@ function AuthScreen({
               <input
                 autoComplete={isCreate ? "new-password" : "current-password"}
                 className="h-10 min-w-0 border-0 bg-white px-3 text-sm outline-none"
-                placeholder="Password"
                 type={showPassword ? "text" : "password"}
                 value={authForm.password}
                 onChange={(event) =>
@@ -1215,7 +1275,6 @@ function AuthScreen({
               <input
                 autoComplete="new-password"
                 className={inputClassName}
-                placeholder="Confirm password"
                 type={showPassword ? "text" : "password"}
                 value={authForm.confirmPassword}
                 onChange={(event) =>
@@ -1507,7 +1566,7 @@ function SchedulingModule({
   return (
     <Panel
       title="Scheduling"
-      description="Outpatient clinic and SNF scheduling with draggable demonstration events."
+      description="Outpatient clinic and SNF scheduling with draggable schedule events."
     >
       <div className="flex flex-wrap gap-2">
         {(["Daily", "Weekly", "Monthly"] as const).map((view) => (
@@ -1712,12 +1771,14 @@ function MessagesModule({
           <div className="grid content-start gap-3">
             <div className="rounded-lg border border-border bg-background p-3">
               <h3 className="font-semibold">Create Group</h3>
-              <input
-                className={`${inputClassName} mt-3 w-full`}
-                placeholder="Group name"
-                value={newGroupName}
-                onChange={(event) => setNewGroupName(event.target.value)}
-              />
+              <label className="mt-3 grid gap-1 text-sm font-medium">
+                <span>Group name</span>
+                <input
+                  className={`${inputClassName} w-full`}
+                  value={newGroupName}
+                  onChange={(event) => setNewGroupName(event.target.value)}
+                />
+              </label>
               <div className="mt-3 grid gap-2">
                 {staffDirectory.map((staff) => (
                   <label
@@ -1811,12 +1872,17 @@ function MessagesModule({
             </div>
 
             <div className="grid gap-3 border-t border-border p-4">
-              <textarea
-                className="min-h-28 rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                placeholder="Write an internal operational message. Do not enter real patient data."
-                value={chatDraft}
-                onChange={(event) => setChatDraft(event.target.value)}
-              />
+              <label className="grid gap-1 text-sm font-medium">
+                <span>Internal operational message</span>
+                <textarea
+                  className="min-h-28 rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  value={chatDraft}
+                  onChange={(event) => setChatDraft(event.target.value)}
+                />
+              </label>
+              <p className="text-xs text-muted-foreground">
+                Do not enter real patient data.
+              </p>
               <div className="flex flex-wrap gap-2">
                 <Button onClick={sendTeamMessage}>Send message</Button>
                 <Button variant="secondary" onClick={generateChatSummary}>
@@ -1835,7 +1901,7 @@ function MessagesModule({
             {summarySuggestion ? (
               <div className="mt-4 grid gap-3 text-sm">
                 <p>
-                  <strong>Summary:</strong> Mock chat contains operational
+                  <strong>Summary:</strong> Conversation contains operational
                   coordination follow-up.
                 </p>
                 <p>
@@ -1874,7 +1940,7 @@ function CommunicationModule() {
         <InfoBlock
           title="Announcements"
           lines={[
-            "Demo policy reminder posted for all staff.",
+            "Policy reminder posted for all staff.",
             "Tablet check-in workflow review scheduled.",
           ]}
         />
@@ -1920,12 +1986,12 @@ function SettingsModule() {
   return (
     <Panel
       title="Settings"
-      description="Mock organization and role-management controls for future expansion."
+      description="Organization and role-management controls for future expansion."
     >
       <div className="grid gap-4 xl:grid-cols-2">
         <InfoBlock
           title="Organization Information"
-          lines={["Demo Med Base Operations Group", "Multi-site workflow prototype"]}
+          lines={["Med Base Operations Group", "Multi-site workflow preview"]}
         />
         <InfoBlock
           title="Departments"
@@ -1938,7 +2004,7 @@ function SettingsModule() {
         <InfoBlock title="Theme" lines={["Healthcare light theme", "High contrast ready"]} />
         <InfoBlock
           title="User Management"
-          lines={["Invite staff", "Deactivate mock user", "Assign department"]}
+          lines={["Invite staff", "Deactivate user", "Assign department"]}
         />
         <InfoBlock
           title="Role Management"
@@ -1962,10 +2028,10 @@ function MedBaseLogo({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function DemoBanner() {
+function PreviewBanner() {
   return (
     <div className="bg-primary px-4 py-2 text-center text-xs font-semibold uppercase text-primary-foreground">
-      {demoBanner}
+      {previewBanner}
     </div>
   );
 }
