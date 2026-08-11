@@ -15,7 +15,7 @@ export function createClient() {
 }
 
 export function createOptionalClient() {
-  if (!env.isSupabaseConfigured) {
+  if (!env.isSupabaseConfigured || typeof window === "undefined") {
     return null;
   }
 
