@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { User } from "@supabase/supabase-js";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import { env } from "@/lib/env";
 import { createOptionalClient } from "@/lib/supabase/client";
 
 type Role =
@@ -1417,7 +1418,9 @@ function AuthScreen({
         <p className="mt-3 rounded-md bg-primary/10 px-3 py-2 text-xs leading-5 text-primary">
           {isSupabaseConfigured
             ? "Supabase authentication is active."
-            : "Supabase keys are not configured yet. This form will run in preview mode until keys are added."}
+            : `Supabase keys are not configured yet. Missing: ${env.missingSupabaseKeys.join(
+                ", ",
+              )}. This form will run in preview mode until keys are added.`}
         </p>
 
         <div className="mt-5 grid grid-cols-2 rounded-md border border-border bg-muted p-1">
