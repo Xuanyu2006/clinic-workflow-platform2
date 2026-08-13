@@ -3,10 +3,24 @@ type PublicEnvKey =
   | "NEXT_PUBLIC_SUPABASE_ANON";
 
 function readOptionalEnv(key: PublicEnvKey) {
-  return process.env[key] ?? "";
+  return process.env[key]?.trim() ?? "";
 }
 
-const supabaseUrl = readOptionalEnv("NEXT_PUBLIC_SUPABASE_URL");
+function normalizeSupabaseUrl(value: string) {
+  if (!value) {
+    return "";
+  }
+
+  try {
+    return new URL(value).origin;
+  } catch {
+    return value;
+  }
+}
+
+const supabaseUrl = normalizeSupabaseUrl(
+  readOptionalEnv("NEXT_PUBLIC_SUPABASE_URL"),
+);
 const supabaseAnonKey = readOptionalEnv("NEXT_PUBLIC_SUPABASE_ANON");
 const missingSupabaseKeys = [
   !supabaseUrl ? "NEXT_PUBLIC_SUPABASE_URL" : "",

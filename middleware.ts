@@ -3,12 +3,26 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/types/database";
 import type { SupabaseCookie } from "@/lib/supabase/cookies";
 
+function normalizeSupabaseUrl(value: string | undefined) {
+  if (!value) {
+    return "";
+  }
+
+  try {
+    return new URL(value.trim()).origin;
+  } catch {
+    return value.trim();
+  }
+}
+
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
     request,
   });
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON;
+  const supabaseUrl = normalizeSupabaseUrl(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+  );
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON?.trim();
 
   if (!supabaseUrl || !supabaseAnonKey) {
     return response;
