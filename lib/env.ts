@@ -1,23 +1,16 @@
 type PublicEnvKey =
   | "NEXT_PUBLIC_SUPABASE_URL"
-  | "NEXT_PUBLIC_SUPABASE_ANON"
-  | "NEXT_PUBLIC_SUPABASE_ANON_KEY"
-  | "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY";
+  | "NEXT_PUBLIC_SUPABASE_ANON";
 
 function readOptionalEnv(key: PublicEnvKey) {
   return process.env[key] ?? "";
 }
 
 const supabaseUrl = readOptionalEnv("NEXT_PUBLIC_SUPABASE_URL");
-const supabaseAnonKey =
-  readOptionalEnv("NEXT_PUBLIC_SUPABASE_ANON") ||
-  readOptionalEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY") ||
-  readOptionalEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
+const supabaseAnonKey = readOptionalEnv("NEXT_PUBLIC_SUPABASE_ANON");
 const missingSupabaseKeys = [
   !supabaseUrl ? "NEXT_PUBLIC_SUPABASE_URL" : "",
-  !supabaseAnonKey
-    ? "NEXT_PUBLIC_SUPABASE_ANON, NEXT_PUBLIC_SUPABASE_ANON_KEY, or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"
-    : "",
+  !supabaseAnonKey ? "NEXT_PUBLIC_SUPABASE_ANON" : "",
 ].filter(Boolean);
 
 export const env = {

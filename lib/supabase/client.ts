@@ -7,7 +7,7 @@ import { env } from "@/lib/env";
 export function createClient() {
   if (!env.isSupabaseConfigured) {
     throw new Error(
-      "Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+      "Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON.",
     );
   }
 

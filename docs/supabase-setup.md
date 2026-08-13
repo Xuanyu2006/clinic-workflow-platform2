@@ -14,7 +14,7 @@ Add these locally in `.env.local` and in Vercel project settings:
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
+NEXT_PUBLIC_SUPABASE_ANON=
 SUPABASE_SERVICE_ROLE_KEY=
 ```
 
