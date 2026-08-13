@@ -22,7 +22,13 @@ export async function middleware(request: NextRequest) {
   const supabaseUrl = normalizeSupabaseUrl(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
   );
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON?.trim();
+  const supabaseAnonKey =
+    (
+      process.env.NEXT_PUBLIC_SUPABASE_ANON ??
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+      ""
+    ).trim();
 
   if (!supabaseUrl || !supabaseAnonKey) {
     return response;

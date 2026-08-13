@@ -1,10 +1,13 @@
-type PublicEnvKey =
-  | "NEXT_PUBLIC_SUPABASE_URL"
-  | "NEXT_PUBLIC_SUPABASE_ANON";
-
-function readOptionalEnv(key: PublicEnvKey) {
-  return process.env[key]?.trim() ?? "";
-}
+// Next.js only inlines NEXT_PUBLIC_* values into the client bundle when they
+// are read as static `process.env.NEXT_PUBLIC_X` member expressions.
+const rawSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? "";
+const supabaseAnonKey =
+  (
+    process.env.NEXT_PUBLIC_SUPABASE_ANON ??
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+    ""
+  ).trim();
 
 function normalizeSupabaseUrl(value: string) {
   if (!value) {
@@ -18,10 +21,7 @@ function normalizeSupabaseUrl(value: string) {
   }
 }
 
-const supabaseUrl = normalizeSupabaseUrl(
-  readOptionalEnv("NEXT_PUBLIC_SUPABASE_URL"),
-);
-const supabaseAnonKey = readOptionalEnv("NEXT_PUBLIC_SUPABASE_ANON");
+const supabaseUrl = normalizeSupabaseUrl(rawSupabaseUrl);
 const missingSupabaseKeys = [
   !supabaseUrl ? "NEXT_PUBLIC_SUPABASE_URL" : "",
   !supabaseAnonKey ? "NEXT_PUBLIC_SUPABASE_ANON" : "",
