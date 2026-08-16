@@ -387,6 +387,15 @@ const statusStyles: Record<TaskStatus, string> = {
   Overdue: "bg-rose-50 text-rose-700 ring-rose-200",
 };
 
+function isStrongPassword(password: string) {
+  return (
+    password.length >= 8 &&
+    /[A-Za-z]/.test(password) &&
+    /\d/.test(password) &&
+    /[^A-Za-z0-9]/.test(password)
+  );
+}
+
 export function MedBaseDashboard() {
   const supabase = useMemo(() => createOptionalClient(), []);
   const [userEmail, setUserEmail] = useState("");
@@ -515,7 +524,14 @@ export function MedBaseDashboard() {
       return;
     }
 
-    if (authForm.password.length < 8) {
+    if (authMode === "create" && !isStrongPassword(authForm.password)) {
+      setAuthError(
+        "Password must be at least 8 characters and include a letter, number, and special character.",
+      );
+      return;
+    }
+
+    if (authMode === "login" && authForm.password.length < 8) {
       setAuthError("Password must be at least 8 characters.");
       return;
     }
@@ -1478,6 +1494,12 @@ function AuthScreen({
                 {showPassword ? "Hide" : "Show"}
               </button>
             </div>
+            {isCreate ? (
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                Use at least 8 characters with a letter, number, and special
+                character.
+              </p>
+            ) : null}
           </Field>
 
           {isCreate ? (
