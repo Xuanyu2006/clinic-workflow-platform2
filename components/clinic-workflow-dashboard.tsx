@@ -227,139 +227,11 @@ const staffDirectory: { name: string; role: Role; department: string }[] = [
   { name: "Camila Torres", role: "Receptionist", department: "Front Desk" },
 ];
 
-const initialTasks: Task[] = [
-  {
-    id: "TASK-001",
-    title: "Confirm afternoon schedule",
-    description: "Review open appointment slots and notify assigned staff.",
-    assignedStaff: "Evan Brooks",
-    department: "Scheduling",
-    priority: "Medium",
-    dueDate: "Today 11:30 AM",
-    status: "In Progress",
-    notes: "Operational coordination task only.",
-    completionTimestamp: "",
-  },
-  {
-    id: "TASK-002",
-    title: "Review pending intake packets",
-    description: "Check which intake packets are incomplete before arrival.",
-    assignedStaff: "Sofia Patel",
-    department: "Front Desk",
-    priority: "High",
-    dueDate: "Today 10:30 AM",
-    status: "Overdue",
-    notes: "No medical content included.",
-    completionTimestamp: "",
-  },
-  {
-    id: "TASK-003",
-    title: "Post shift reminder",
-    description: "Share a daily reminder in the internal team channel.",
-    assignedStaff: "Lena Ortiz, RN",
-    department: "Clinical Operations",
-    priority: "Low",
-    dueDate: "Today 3:00 PM",
-    status: "Approved",
-    notes: "Requires human review before edits become active.",
-    completionTimestamp: "",
-  },
-];
+const initialTasks: Task[] = [];
 
-const initialScheduleEvents: ScheduleEvent[] = [
-  {
-    id: "EVT-001",
-    title: "Outpatient provider block",
-    owner: "Provider Team A",
-    day: "Monday",
-    time: "8:00 AM",
-    type: "Clinic",
-  },
-  {
-    id: "EVT-002",
-    title: "SNF therapy coordination",
-    owner: "Therapy Team",
-    day: "Tuesday",
-    time: "10:00 AM",
-    type: "SNF",
-  },
-  {
-    id: "EVT-003",
-    title: "Front desk coverage",
-    owner: "Operations Team",
-    day: "Wednesday",
-    time: "12:00 PM",
-    type: "Staff Shift",
-  },
-  {
-    id: "EVT-004",
-    title: "Schedule review",
-    owner: "Office Manager",
-    day: "Thursday",
-    time: "2:00 PM",
-    type: "Admin",
-  },
-];
+const initialScheduleEvents: ScheduleEvent[] = [];
 
-const initialChats: TeamChat[] = [
-  {
-    id: "CHAT-001",
-    name: "Clinic Operations Group",
-    type: "Group",
-    participants: [
-      "Dr. Priya Foster",
-      "Lena Ortiz, RN",
-      "Marcus Reid, MA",
-      "Sofia Patel",
-    ],
-    messages: [
-      {
-        id: "MSG-001",
-        author: "Dr. Priya Foster",
-        role: "Physician",
-        text: "Please confirm the afternoon room schedule and flag any operational delays.",
-        time: "8:42 AM",
-      },
-      {
-        id: "MSG-002",
-        author: "Lena Ortiz, RN",
-        role: "Nurse",
-        text: "Room coverage is being reviewed. No clinical decision is being made in this thread.",
-        time: "8:49 AM",
-      },
-    ],
-  },
-  {
-    id: "CHAT-002",
-    name: "Physician + Medical Assistant",
-    type: "Direct",
-    participants: ["Dr. Priya Foster", "Marcus Reid, MA"],
-    messages: [
-      {
-        id: "MSG-003",
-        author: "Marcus Reid, MA",
-        role: "Medical Assistant",
-        text: "The forms queue needs a front desk follow-up before the next appointment block.",
-        time: "9:05 AM",
-      },
-    ],
-  },
-  {
-    id: "CHAT-003",
-    name: "SNF Coordination",
-    type: "Group",
-    participants: ["Lena Ortiz, RN", "Talia Nguyen", "Evan Brooks"],
-    messages: [
-      {
-        id: "MSG-004",
-        author: "Talia Nguyen",
-        role: "Therapist",
-        text: "Please coordinate the SNF shift schedule handoff for the afternoon team.",
-        time: "9:20 AM",
-      },
-    ],
-  },
-];
+const initialChats: TeamChat[] = [];
 
 const analytics = [
   { label: "Appointment volume", value: "42", change: "+8%" },
@@ -630,7 +502,13 @@ export function MedBaseDashboard() {
   }
 
   function sendTeamMessage() {
-    if (!selectedChatId || !chatDraft.trim()) {
+    if (!selectedChatId) {
+      setMessageError("Create or select a conversation before sending a message.");
+      return;
+    }
+
+    if (!chatDraft.trim()) {
+      setMessageError("Enter a message before sending.");
       return;
     }
 
@@ -911,7 +789,10 @@ export function MedBaseDashboard() {
         <main className="grid gap-6 px-6 py-8 xl:px-10">
           {activeModule === "Dashboard" && (
             <DashboardModule
+              scheduleEvents={scheduleEvents}
               setActiveModule={setActiveModule}
+              tasks={tasks}
+              teamChats={teamChats}
             />
           )}
           {activeModule === "Scheduling" && (
@@ -1553,103 +1434,41 @@ function AuthScreen({
 }
 
 function DashboardModule({
+  scheduleEvents,
   setActiveModule,
+  tasks,
+  teamChats,
 }: {
+  scheduleEvents: ScheduleEvent[];
   setActiveModule: (module: Module) => void;
+  tasks: Task[];
+  teamChats: TeamChat[];
 }) {
-  const dashboardAppointments = [
-    {
-      time: "09:00 AM",
-      title: "Jordan Avery",
-      subtitle: "Pre-visit forms pending",
-      tag: "Primary Care",
-    },
-    {
-      time: "10:30 AM",
-      title: "Maya Chen",
-      subtitle: "Reminder confirmed by text",
-      tag: "Pediatrics",
-    },
-    {
-      time: "01:15 PM",
-      title: "Noah Bennett",
-      subtitle: "Insurance verification queued",
-      tag: "Cardiology",
-    },
-    {
-      time: "03:45 PM",
-      title: "Elena Brooks",
-      subtitle: "Follow-up scheduling note added",
-      tag: "General Med",
-    },
-  ];
-
-  const dashboardNotifications = [
-    {
-      title: "Two appointments need reminder review before noon.",
-      time: "Just Now",
-      tone: "urgent",
-    },
-    {
-      title: "New group message summary is waiting for task approval.",
-      time: "30 minutes ago",
-      tone: "normal",
-    },
-    {
-      title: "Shift note posted for front desk coverage.",
-      time: "1 hour ago",
-      tone: "normal",
-    },
-  ];
-
-  const rosterRows = [
-    {
-      title: "Dr. Priya Foster",
-      subtitle: "On duty since 7:45 AM",
-      tag: "Primary Care",
-      active: true,
-    },
-    {
-      title: "Lena Ortiz, RN",
-      subtitle: "On duty since 8:00 AM",
-      tag: "Cardiology",
-      active: true,
-    },
-    {
-      title: "Marcus Reid, MA",
-      subtitle: "Rooming support active",
-      tag: "Outpatient",
-      active: true,
-    },
-    {
-      title: "Avery Singh",
-      subtitle: "Next shift starts at 12:00 PM",
-      tag: "Radiology",
-      active: false,
-    },
-  ];
-
-  const activityRows = [
-    {
-      title: "Front desk updated appointment status",
-      subtitle: "Reminder outcome changed to confirmed",
-      time: "8 mins ago",
-    },
-    {
-      title: "Scheduler moved a follow-up visit",
-      subtitle: "Moved from 2:30 PM to 3:45 PM",
-      time: "25 mins ago",
-    },
-    {
-      title: "Digital intake packet completed",
-      subtitle: "Ready for staff review before check-in",
-      time: "1 hour ago",
-    },
-    {
-      title: "Insurance verification marked reviewed",
-      subtitle: "Office manager approved workflow note",
-      time: "2 hours ago",
-    },
+  const appointmentEvents = scheduleEvents.filter(
+    (event) => event.type === "Clinic" || event.type === "SNF",
+  );
+  const shiftEvents = scheduleEvents.filter((event) => event.type === "Staff Shift");
+  const pendingTasks = tasks.filter(
+    (task) => task.status !== "Completed" && task.status !== "Cancelled",
+  );
+  const overdueTasks = tasks.filter((task) => task.status === "Overdue");
+  const recentMessages = teamChats.flatMap((chat) =>
+    chat.messages.map((message) => ({
+      chatName: chat.name,
+      ...message,
+    })),
+  );
+  const notifications = [
+    ...overdueTasks.map((task) => ({
+      title: `Overdue task: ${task.title}`,
+      time: task.dueDate,
+      tone: "urgent" as const,
+    })),
+    ...pendingTasks.slice(0, 2).map((task) => ({
+      title: `Pending task: ${task.title}`,
+      time: task.dueDate,
+      tone: "normal" as const,
+    })),
   ];
 
   return (
@@ -1658,108 +1477,128 @@ function DashboardModule({
         <DashboardStatCard
           icon="[]"
           label="Today's Appointments"
-          value="12"
+          value={String(appointmentEvents.length)}
         />
-        <DashboardStatCard icon="+o" label="Staff on Shift" value="8" />
-        <DashboardStatCard icon="[]" label="Pending Tasks" value="5" />
+        <DashboardStatCard
+          icon="+o"
+          label="Staff on Shift"
+          value={String(shiftEvents.length)}
+        />
+        <DashboardStatCard
+          icon="[]"
+          label="Pending Tasks"
+          value={String(pendingTasks.length)}
+        />
         <DashboardStatCard
           danger
           icon="!"
           label="Overdue Tasks"
-          value="3"
+          value={String(overdueTasks.length)}
         />
       </section>
 
       <section className="grid gap-8 xl:grid-cols-2">
         <DashboardPanel
-          badge="12"
+          badge={String(appointmentEvents.length)}
           cta="View Calendar"
           onCta={() => setActiveModule("Scheduling")}
           title="Today's Appointments"
         >
           <div className="grid gap-4">
-            {dashboardAppointments.map((appointment) => (
-              <div
-                key={appointment.time}
-                className="grid items-center gap-4 rounded-lg bg-[#f0f0f0] p-4 md:grid-cols-[118px_minmax(0,1fr)_auto]"
-              >
-                <span className="rounded-md bg-primary/10 px-3 py-2 text-center text-sm font-bold text-primary">
-                  {appointment.time}
-                </span>
-                <div>
-                  <p className="text-lg font-semibold">{appointment.title}</p>
-                  <p className="text-base text-muted-foreground">{appointment.subtitle}</p>
+            {appointmentEvents.length === 0 ? (
+              <EmptyState message="No appointments have been scheduled yet." />
+            ) : (
+              appointmentEvents.map((appointment) => (
+                <div
+                  key={appointment.id}
+                  className="grid items-center gap-4 rounded-lg bg-[#f0f0f0] p-4 md:grid-cols-[118px_minmax(0,1fr)_auto]"
+                >
+                  <span className="rounded-md bg-primary/10 px-3 py-2 text-center text-sm font-bold text-primary">
+                    {appointment.time}
+                  </span>
+                  <div>
+                    <p className="text-lg font-semibold">{appointment.title}</p>
+                    <p className="text-base text-muted-foreground">
+                      {appointment.owner}
+                    </p>
+                  </div>
+                  <StatusPill>{appointment.type}</StatusPill>
                 </div>
-                <StatusPill>{appointment.tag}</StatusPill>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </DashboardPanel>
 
         <DashboardPanel
-          badge="3"
+          badge={String(notifications.length)}
           cta="Mark All as Read"
           title="Notifications"
         >
           <div className="grid gap-4">
-            {dashboardNotifications.map((notification) => (
-              <div
-                key={notification.title}
-                className={`grid grid-cols-[32px_minmax(0,1fr)] gap-3 rounded-lg p-4 ${
-                  notification.tone === "urgent"
-                    ? "bg-red-50 text-red-700"
-                    : "bg-[#f0f0f0] text-foreground"
-                }`}
-              >
-                <span
-                  className={`grid size-6 place-items-center rounded-full border-2 text-xs font-bold ${
+            {notifications.length === 0 ? (
+              <EmptyState message="No notifications yet." />
+            ) : (
+              notifications.map((notification) => (
+                <div
+                  key={`${notification.title}-${notification.time}`}
+                  className={`grid grid-cols-[32px_minmax(0,1fr)] gap-3 rounded-lg p-4 ${
                     notification.tone === "urgent"
-                      ? "border-red-500 text-red-500"
-                      : "border-primary text-primary"
+                      ? "bg-red-50 text-red-700"
+                      : "bg-[#f0f0f0] text-foreground"
                   }`}
                 >
-                  !
-                </span>
-                <div>
-                  <p className="text-base font-semibold">{notification.title}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{notification.time}</p>
+                  <span
+                    className={`grid size-6 place-items-center rounded-full border-2 text-xs font-bold ${
+                      notification.tone === "urgent"
+                        ? "border-red-500 text-red-500"
+                        : "border-primary text-primary"
+                    }`}
+                  >
+                    !
+                  </span>
+                  <div>
+                    <p className="text-base font-semibold">{notification.title}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {notification.time}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </DashboardPanel>
       </section>
 
       <section className="grid gap-8 xl:grid-cols-2">
-        <DashboardPanel badge="8" cta="Manage Roster" title="Staff on Shift">
+        <DashboardPanel
+          badge={String(shiftEvents.length)}
+          cta="Manage Roster"
+          title="Staff on Shift"
+        >
           <div className="grid gap-4">
-            {rosterRows.map((row) => (
-              <div
-                key={row.title}
-                className="grid items-center gap-4 rounded-lg bg-[#f0f0f0] p-4 md:grid-cols-[minmax(0,1fr)_auto]"
-              >
-                <div className="grid grid-cols-[18px_minmax(0,1fr)] gap-3">
-                  <span
-                    className={`mt-2 size-3 rounded-full ${
-                      row.active ? "bg-emerald-500" : "bg-slate-500"
-                    }`}
-                  />
-                  <div>
-                    <p className="text-lg font-semibold">{row.title}</p>
-                    <p className="text-base text-muted-foreground">{row.subtitle}</p>
-                  </div>
-                </div>
-                <StatusPill
-                  className={
-                    row.active
-                      ? "bg-emerald-50 text-emerald-700 ring-emerald-100"
-                      : "bg-slate-100 text-slate-600 ring-slate-200"
-                  }
+            {shiftEvents.length === 0 ? (
+              <EmptyState message="No staff shifts have been added yet." />
+            ) : (
+              shiftEvents.map((event) => (
+                <div
+                  key={event.id}
+                  className="grid items-center gap-4 rounded-lg bg-[#f0f0f0] p-4 md:grid-cols-[minmax(0,1fr)_auto]"
                 >
-                  {row.tag}
-                </StatusPill>
-              </div>
-            ))}
+                  <div className="grid grid-cols-[18px_minmax(0,1fr)] gap-3">
+                    <span className="mt-2 size-3 rounded-full bg-emerald-500" />
+                    <div>
+                      <p className="text-lg font-semibold">{event.owner}</p>
+                      <p className="text-base text-muted-foreground">
+                        {event.day} at {event.time}
+                      </p>
+                    </div>
+                  </div>
+                  <StatusPill className="bg-emerald-50 text-emerald-700 ring-emerald-100">
+                    {event.title}
+                  </StatusPill>
+                </div>
+              ))
+            )}
           </div>
         </DashboardPanel>
 
@@ -1769,18 +1608,26 @@ function DashboardModule({
           title="Recent Activity"
         >
           <div className="grid gap-4">
-            {activityRows.map((row) => (
-              <div
-                key={row.title}
-                className="grid gap-3 rounded-lg bg-[#f0f0f0] p-4 md:grid-cols-[minmax(0,1fr)_130px]"
-              >
-                <div>
-                  <p className="text-base font-semibold">{row.title}</p>
-                  <p className="mt-1 text-base text-muted-foreground">{row.subtitle}</p>
+            {recentMessages.length === 0 ? (
+              <EmptyState message="No recent activity yet." />
+            ) : (
+              recentMessages.slice(-4).map((message) => (
+                <div
+                  key={message.id}
+                  className="grid gap-3 rounded-lg bg-[#f0f0f0] p-4 md:grid-cols-[minmax(0,1fr)_130px]"
+                >
+                  <div>
+                    <p className="text-base font-semibold">{message.chatName}</p>
+                    <p className="mt-1 text-base text-muted-foreground">
+                      Message from {message.author}
+                    </p>
+                  </div>
+                  <p className="text-right text-sm text-muted-foreground">
+                    {message.time}
+                  </p>
                 </div>
-                <p className="text-right text-sm text-muted-foreground">{row.time}</p>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </DashboardPanel>
       </section>
@@ -1831,9 +1678,12 @@ function SchedulingModule({
           >
             <h3 className="font-semibold">{day}</h3>
             <div className="mt-3 grid gap-3">
-              {scheduleEvents
-                .filter((event) => event.day === day)
-                .map((event) => (
+              {scheduleEvents.filter((event) => event.day === day).length === 0 ? (
+                <EmptyState message="No schedule items." />
+              ) : (
+                scheduleEvents
+                  .filter((event) => event.day === day)
+                  .map((event) => (
                   <article
                     key={event.id}
                     className={`cursor-grab rounded-lg border p-3 text-sm ${eventStyles[event.type]}`}
@@ -1847,7 +1697,8 @@ function SchedulingModule({
                     <p>{event.owner}</p>
                     <p className="mt-1 text-xs">{event.type}</p>
                   </article>
-                ))}
+                  ))
+              )}
             </div>
           </div>
         ))}
@@ -1856,11 +1707,15 @@ function SchedulingModule({
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
         <InfoBlock
           title="Provider schedules"
-          lines={["Provider Team A - clinic block", "Provider Team B - admin block"]}
+          lines={scheduleEvents
+            .filter((event) => event.type === "Clinic")
+            .map((event) => `${event.owner} - ${event.title}`)}
         />
         <InfoBlock
           title="Staff schedules"
-          lines={["Operations Team - front desk coverage", "Therapy Team - SNF coordination"]}
+          lines={scheduleEvents
+            .filter((event) => event.type === "Staff Shift")
+            .map((event) => `${event.owner} - ${event.title}`)}
         />
       </div>
     </Panel>
@@ -2045,23 +1900,27 @@ function MessagesModule({
               </Button>
             </div>
 
-            {teamChats.map((chat) => (
-              <button
-                key={chat.id}
-                className={`rounded-lg border p-3 text-left text-sm transition ${
-                  selectedChatId === chat.id
-                    ? "border-primary bg-primary/10 text-foreground"
-                    : "border-border bg-background text-muted-foreground hover:bg-muted"
-                }`}
-                type="button"
-                onClick={() => selectChat(chat.id)}
-              >
-                <span className="block font-semibold">{chat.name}</span>
-                <span>
-                  {chat.type} - {chat.participants.join(", ")}
-                </span>
-              </button>
-            ))}
+            {teamChats.length === 0 ? (
+              <EmptyState message="No conversations yet. Create a group to start messaging." />
+            ) : (
+              teamChats.map((chat) => (
+                <button
+                  key={chat.id}
+                  className={`rounded-lg border p-3 text-left text-sm transition ${
+                    selectedChatId === chat.id
+                      ? "border-primary bg-primary/10 text-foreground"
+                      : "border-border bg-background text-muted-foreground hover:bg-muted"
+                  }`}
+                  type="button"
+                  onClick={() => selectChat(chat.id)}
+                >
+                  <span className="block font-semibold">{chat.name}</span>
+                  <span>
+                    {chat.type} - {chat.participants.join(", ")}
+                  </span>
+                </button>
+              ))
+            )}
           </div>
 
           <div className="rounded-lg border border-border bg-background">
@@ -2093,22 +1952,28 @@ function MessagesModule({
             </div>
 
             <div className="grid max-h-[420px] gap-3 overflow-auto p-4">
-              {selectedChat?.messages.map((message) => (
-                <article
-                  key={message.id}
-                  className="rounded-lg border border-border bg-white p-3"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-semibold">{message.author}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {message.role} - {message.time}
+              {!selectedChat ? (
+                <EmptyState message="Select or create a conversation." />
+              ) : selectedChat.messages.length === 0 ? (
+                <EmptyState message="No messages yet." />
+              ) : (
+                selectedChat.messages.map((message) => (
+                  <article
+                    key={message.id}
+                    className="rounded-lg border border-border bg-white p-3"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-semibold">{message.author}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {message.role} - {message.time}
+                      </p>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                      {message.text}
                     </p>
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    {message.text}
-                  </p>
-                </article>
-              ))}
+                  </article>
+                ))
+              )}
             </div>
 
             <div className="grid gap-3 border-t border-border p-4">
@@ -2427,14 +2292,20 @@ function InfoBlock({ title, lines }: { title: string; lines: string[] }) {
 function StackedList({ items }: { items: string[] }) {
   return (
     <div className="mt-3 grid gap-2">
-      {items.map((item) => (
-        <div
-          key={item}
-          className="rounded-md border border-border bg-white px-3 py-2 text-sm text-muted-foreground"
-        >
-          {item}
+      {items.length === 0 ? (
+        <div className="rounded-md border border-dashed border-border bg-white px-3 py-2 text-sm text-muted-foreground">
+          Nothing added yet.
         </div>
-      ))}
+      ) : (
+        items.map((item) => (
+          <div
+            key={item}
+            className="rounded-md border border-border bg-white px-3 py-2 text-sm text-muted-foreground"
+          >
+            {item}
+          </div>
+        ))
+      )}
     </div>
   );
 }
