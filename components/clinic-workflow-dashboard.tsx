@@ -300,9 +300,71 @@ function isStrongPassword(password: string) {
   );
 }
 
+function formatScheduleDay(value: string) {
+  return new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(
+    new Date(value),
+  );
+}
+
+function formatScheduleTime(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function formatDueDate(value: string | null) {
+  if (!value) {
+    return "No due date";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function parseRelativeDueDate(value: string) {
+  const dueAt = new Date();
+  const timeMatch = value.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+
+  if (!timeMatch) {
+    return dueAt.toISOString();
+  }
+
+  const rawHour = Number(timeMatch[1]);
+  const minutes = Number(timeMatch[2]);
+  const isPm = timeMatch[3].toLowerCase() === "pm";
+  const hours = rawHour === 12 ? (isPm ? 12 : 0) : isPm ? rawHour + 12 : rawHour;
+  dueAt.setHours(hours, minutes, 0, 0);
+
+  return dueAt.toISOString();
+}
+
+function dateForWeekday(day: string, time: string) {
+  const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const targetDay = weekdays.indexOf(day);
+  const nextDate = new Date();
+  const dayDelta = targetDay >= 0 ? (targetDay - nextDate.getDay() + 7) % 7 : 0;
+  nextDate.setDate(nextDate.getDate() + dayDelta);
+
+  const timeMatch = time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+  if (timeMatch) {
+    const rawHour = Number(timeMatch[1]);
+    const minutes = Number(timeMatch[2]);
+    const isPm = timeMatch[3].toLowerCase() === "pm";
+    const hours = rawHour === 12 ? (isPm ? 12 : 0) : isPm ? rawHour + 12 : rawHour;
+    nextDate.setHours(hours, minutes, 0, 0);
+  }
+
+  return nextDate.toISOString();
+}
+
 export function MedBaseDashboard() {
   const supabase = useMemo(() => createOptionalClient(), []);
   const [userEmail, setUserEmail] = useState("");
+  const [currentUserId, setCurrentUserId] = useState("");
+  const [currentOrganizationId, setCurrentOrganizationId] = useState(previewOrganizationId);
   const [role, setRole] = useState<Role>("Administrator");
   const [authMode, setAuthMode] = useState<"login" | "create">("login");
   const [authView, setAuthView] = useState<"landing" | "auth">("landing");
@@ -340,6 +402,9 @@ export function MedBaseDashboard() {
   const [newDepartment, setNewDepartment] = useState("");
   const [userSettings, setUserSettings] = useState(initialUserSettings);
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
+  const [staffMembers, setStaffMembers] = useState<
+    { name: string; role: Role; department: string }[]
+  >(staffDirectory);
   const [inviteDraft, setInviteDraft] = useState({
     email: "",
     role: "Front Desk" as Role,
@@ -408,6 +473,7 @@ export function MedBaseDashboard() {
   async function loadAuthenticatedUser(user: User) {
     const email = user.email ?? "";
     setUserEmail(email);
+    setCurrentUserId(user.id);
     setAuthStatus("signed-in");
     setAuthView("landing");
 
@@ -417,13 +483,186 @@ export function MedBaseDashboard() {
 
     const { data } = await supabase
       .from("user_profiles")
-      .select("role")
+      .select("organization_id, role")
       .eq("id", user.id)
       .maybeSingle();
+
+    const organizationId = data?.organization_id ?? previewOrganizationId;
+    setCurrentOrganizationId(organizationId);
 
     if (data?.role) {
       setRole(data.role as Role);
     }
+
+    await loadWorkspaceData(user.id, organizationId);
+  }
+
+  async function loadWorkspaceData(userId: string, organizationId: string) {
+    if (!supabase) {
+      return;
+    }
+
+    const [
+      tasksResult,
+      scheduleResult,
+      conversationsResult,
+      messagesResult,
+      communicationResult,
+      departmentsResult,
+      settingsResult,
+      profilesResult,
+    ] = await Promise.all([
+      supabase
+        .from("tasks")
+        .select("*")
+        .eq("organization_id", organizationId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("schedule_events")
+        .select("*")
+        .eq("organization_id", organizationId)
+        .order("starts_at", { ascending: true }),
+      supabase
+        .from("conversations")
+        .select("*")
+        .eq("organization_id", organizationId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("messages")
+        .select("*")
+        .eq("organization_id", organizationId)
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("communication_posts")
+        .select("*")
+        .eq("organization_id", organizationId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("organization_departments")
+        .select("name")
+        .eq("organization_id", organizationId)
+        .order("name", { ascending: true }),
+      supabase.from("user_settings").select("settings").eq("user_id", userId).maybeSingle(),
+      supabase
+        .from("user_profiles")
+        .select("email, full_name, role, department")
+        .eq("organization_id", organizationId)
+        .order("email", { ascending: true }),
+    ]);
+
+    if (tasksResult.data) {
+      setTasks(
+        tasksResult.data.map((task) => ({
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          assignedStaff: task.assigned_staff ?? "Unassigned",
+          department: task.department ?? "Administration",
+          priority: task.priority,
+          dueDate: formatDueDate(task.due_at),
+          status: task.status,
+          notes: task.notes,
+          completionTimestamp: task.completion_timestamp
+            ? formatDueDate(task.completion_timestamp)
+            : "",
+        })),
+      );
+    }
+
+    if (scheduleResult.data) {
+      setScheduleEvents(
+        scheduleResult.data.map((event) => ({
+          id: event.id,
+          title: event.title,
+          owner: event.owner,
+          day: formatScheduleDay(event.starts_at),
+          time: formatScheduleTime(event.starts_at),
+          type: event.event_type,
+        })),
+      );
+    }
+
+    if (conversationsResult.data && messagesResult.data) {
+      setTeamChats(
+        conversationsResult.data.map((conversation) => ({
+          id: conversation.id,
+          name: conversation.name,
+          type: conversation.chat_type,
+          participants: [],
+          messages: messagesResult.data
+            .filter((message) => message.conversation_id === conversation.id)
+            .map((message) => ({
+              id: message.id,
+              author: "Team member",
+              role,
+              text: message.body,
+              time: formatScheduleTime(message.created_at),
+            })),
+        })),
+      );
+      setSelectedChatId(conversationsResult.data[0]?.id ?? "");
+    }
+
+    if (communicationResult.data) {
+      const nextBoards: CommunicationBoards = {
+        announcements: [],
+        shiftNotes: [],
+        dailyReminders: [],
+      };
+      communicationResult.data.forEach((post) => {
+        if (
+          post.board_key === "announcements" ||
+          post.board_key === "shiftNotes" ||
+          post.board_key === "dailyReminders"
+        ) {
+          nextBoards[post.board_key].push(post.body);
+        }
+      });
+      setCommunicationBoards(nextBoards);
+    }
+
+    if (departmentsResult.data && departmentsResult.data.length > 0) {
+      setDepartments(departmentsResult.data.map((department) => department.name));
+    }
+
+    if (
+      settingsResult.data?.settings &&
+      typeof settingsResult.data.settings === "object" &&
+      !Array.isArray(settingsResult.data.settings)
+    ) {
+      setUserSettings({
+        ...initialUserSettings,
+        ...(settingsResult.data.settings as Partial<UserPreferenceSettings>),
+      });
+    }
+
+    if (profilesResult.data) {
+      const nextStaffMembers = profilesResult.data.map((profile) => ({
+          name: profile.full_name || profile.email,
+          role: profile.role as Role,
+          department: profile.department || "Unassigned",
+        }));
+      setStaffMembers(nextStaffMembers);
+      setParticipantToAdd(nextStaffMembers[0]?.name ?? "");
+    }
+  }
+
+  async function writeAuditLog(
+    action: string,
+    resourceType: string,
+    resourceId?: string,
+  ) {
+    if (!supabase || !currentUserId) {
+      return;
+    }
+
+    await supabase.from("audit_logs").insert({
+      organization_id: currentOrganizationId,
+      actor_id: currentUserId,
+      action,
+      resource_type: resourceType,
+      resource_id: resourceId,
+    });
   }
 
   async function ensureUserProfile(user: User, selectedRole: Role) {
@@ -544,13 +783,24 @@ export function MedBaseDashboard() {
     setSummarySuggestion(null);
   }
 
-  function moveScheduleEvent(eventId: string, day: string) {
+  async function moveScheduleEvent(eventId: string, day: string) {
+    const eventToMove = scheduleEvents.find((event) => event.id === eventId);
+
     setScheduleEvents((current) =>
       current.map((event) => (event.id === eventId ? { ...event, day } : event)),
     );
+
+    if (supabase && eventToMove) {
+      await supabase
+        .from("schedule_events")
+        .update({ starts_at: dateForWeekday(day, eventToMove.time) })
+        .eq("id", eventId);
+    }
+
+    await writeAuditLog("schedule_event.moved", "schedule_events", eventId);
   }
 
-  function sendTeamMessage() {
+  async function sendTeamMessage() {
     if (!selectedChatId) {
       setMessageError("Create or select a conversation before sending a message.");
       return;
@@ -566,6 +816,29 @@ export function MedBaseDashboard() {
       return;
     }
 
+    let persistedMessageId = `MSG-${Date.now()}`;
+
+    if (supabase) {
+      const { data, error } = await supabase
+        .from("messages")
+        .insert({
+          organization_id: currentOrganizationId,
+          conversation_id: selectedChatId,
+          author_id: currentUserId || null,
+          body: chatDraft,
+        })
+        .select("id")
+        .single();
+
+      if (error) {
+        setMessageError(error.message);
+        return;
+      }
+
+      persistedMessageId = data.id;
+      await writeAuditLog("message.created", "messages", persistedMessageId);
+    }
+
     setTeamChats((current) =>
       current.map((chat) =>
         chat.id === selectedChatId
@@ -574,8 +847,8 @@ export function MedBaseDashboard() {
               messages: [
                 ...chat.messages,
                 {
-                  id: `MSG-${Date.now()}`,
-                  author: "Current user",
+                  id: persistedMessageId,
+                  author: userEmail || "Current user",
                   role,
                   text: chatDraft,
                   time: "Just now",
@@ -617,13 +890,36 @@ export function MedBaseDashboard() {
     );
   }
 
-  function createGroupChat() {
+  async function createGroupChat() {
     if (!newGroupName.trim()) {
       return;
     }
 
+    let newChatId = `CHAT-${Date.now()}`;
+
+    if (supabase) {
+      const { data, error } = await supabase
+        .from("conversations")
+        .insert({
+          organization_id: currentOrganizationId,
+          name: newGroupName.trim(),
+          chat_type: "Group",
+          created_by: currentUserId || null,
+        })
+        .select("id")
+        .single();
+
+      if (error) {
+        setMessageError(error.message);
+        return;
+      }
+
+      newChatId = data.id;
+      await writeAuditLog("conversation.created", "conversations", newChatId);
+    }
+
     const newChat: TeamChat = {
-      id: `CHAT-${Date.now()}`,
+      id: newChatId,
       name: newGroupName.trim(),
       type: "Group",
       participants: newGroupParticipants,
@@ -657,14 +953,41 @@ export function MedBaseDashboard() {
     });
   }
 
-  function approveSuggestedTask() {
+  async function approveSuggestedTask() {
     if (!summarySuggestion) {
       return;
     }
 
+    let taskId = `TASK-${String(tasks.length + 1).padStart(3, "0")}`;
+    const dueAt = parseRelativeDueDate(summarySuggestion.dueDate);
+
+    if (supabase) {
+      const { data, error } = await supabase
+        .from("tasks")
+        .insert({
+          organization_id: currentOrganizationId,
+          title: summarySuggestion.title,
+          description: summarySuggestion.description,
+          assigned_staff: "Unassigned",
+          department: "Administration",
+          priority: summarySuggestion.priority,
+          due_at: dueAt,
+          status: "Pending Approval",
+          notes: "Generated from a team chat summary. Must be reviewed by a human.",
+          created_by: currentUserId || null,
+        })
+        .select("id")
+        .single();
+
+      if (!error) {
+        taskId = data.id;
+        await writeAuditLog("task.created_from_summary", "tasks", taskId);
+      }
+    }
+
     setTasks((current) => [
       {
-        id: `TASK-${String(current.length + 1).padStart(3, "0")}`,
+        id: taskId,
         title: summarySuggestion.title,
         description: summarySuggestion.description,
         assignedStaff: "Unassigned",
@@ -682,7 +1005,7 @@ export function MedBaseDashboard() {
     setActiveModule("Tasks");
   }
 
-  function addCommunicationPost(board: CommunicationBoardKey) {
+  async function addCommunicationPost(board: CommunicationBoardKey) {
     const value = communicationDrafts[board].trim();
 
     if (!value) {
@@ -695,6 +1018,26 @@ export function MedBaseDashboard() {
       return;
     }
 
+    if (supabase) {
+      const { data, error } = await supabase
+        .from("communication_posts")
+        .insert({
+          organization_id: currentOrganizationId,
+          board_key: board,
+          body: value,
+          created_by: currentUserId || null,
+        })
+        .select("id")
+        .single();
+
+      if (error) {
+        setCommunicationError(error.message);
+        return;
+      }
+
+      await writeAuditLog("communication_post.created", "communication_posts", data.id);
+    }
+
     setCommunicationBoards((current) => ({
       ...current,
       [board]: [value, ...current[board]],
@@ -703,45 +1046,94 @@ export function MedBaseDashboard() {
     setCommunicationError("");
   }
 
+  function updateUserSettings(nextSettings: UserPreferenceSettings) {
+    setUserSettings(nextSettings);
+
+    if (supabase && currentUserId) {
+      void supabase.from("user_settings").upsert({
+        user_id: currentUserId,
+        organization_id: currentOrganizationId,
+        settings: nextSettings,
+      });
+    }
+  }
+
   function updateNotificationPreference(
     preference: keyof NotificationPreferences,
     value: boolean,
   ) {
-    setUserSettings((current) => ({
-      ...current,
+    const nextSettings = {
+      ...userSettings,
       notifications: {
-        ...current.notifications,
+        ...userSettings.notifications,
         [preference]: value,
       },
-    }));
+    };
+    updateUserSettings(nextSettings);
   }
 
-  function addDepartment() {
+  async function addDepartment() {
     const value = newDepartment.trim();
 
     if (!value || departments.includes(value)) {
       return;
     }
 
+    if (supabase) {
+      const { error } = await supabase.from("organization_departments").insert({
+        organization_id: currentOrganizationId,
+        name: value,
+        created_by: currentUserId || null,
+      });
+
+      if (error) {
+        return;
+      }
+
+      await writeAuditLog("department.created", "organization_departments");
+    }
+
     setDepartments((current) => [...current, value]);
     setNewDepartment("");
   }
 
-  function removeDepartment(department: string) {
+  async function removeDepartment(department: string) {
+    if (supabase) {
+      await supabase
+        .from("organization_departments")
+        .delete()
+        .eq("organization_id", currentOrganizationId)
+        .eq("name", department);
+      await writeAuditLog("department.deleted", "organization_departments");
+    }
+
     setDepartments((current) => current.filter((item) => item !== department));
     if (userSettings.defaultDepartment === department) {
-      setUserSettings((current) => ({
-        ...current,
+      updateUserSettings({
+        ...userSettings,
         defaultDepartment: departments.find((item) => item !== department) ?? "",
-      }));
+      });
     }
   }
 
-  function addPendingInvite() {
+  async function addPendingInvite() {
     const email = inviteDraft.email.trim();
 
     if (!email) {
       return;
+    }
+
+    if (supabase) {
+      await supabase.from("notification_outbox").insert({
+        organization_id: currentOrganizationId,
+        channel: "email",
+        recipient: email,
+        subject: "Med Base invite draft",
+        body: `Invite ${email} as ${inviteDraft.role} in ${inviteDraft.department}.`,
+        status: "Draft",
+        created_by: currentUserId || null,
+      });
+      await writeAuditLog("invite_draft.created", "notification_outbox");
     }
 
     setPendingInvites((current) => [
@@ -756,15 +1148,30 @@ export function MedBaseDashboard() {
     setInviteDraft((current) => ({ ...current, email: "" }));
   }
 
-  function updateTaskStatus(id: string, status: TaskStatus) {
+  async function updateTaskStatus(id: string, status: TaskStatus) {
+    const completionTimestamp =
+      status === "Completed" ? new Date().toLocaleString() : "";
+
+    if (supabase) {
+      const completedAt =
+        status === "Completed" ? new Date().toISOString() : null;
+      await supabase
+        .from("tasks")
+        .update({
+          status,
+          completion_timestamp: completedAt,
+        })
+        .eq("id", id);
+      await writeAuditLog("task.status_updated", "tasks", id);
+    }
+
     setTasks((current) =>
       current.map((task) =>
         task.id === id
           ? {
               ...task,
               status,
-              completionTimestamp:
-                status === "Completed" ? new Date().toLocaleString() : "",
+              completionTimestamp,
             }
           : task,
       ),
@@ -951,7 +1358,7 @@ export function MedBaseDashboard() {
               setChatDraft={setChatDraft}
               setNewGroupName={setNewGroupName}
               setParticipantToAdd={setParticipantToAdd}
-              staffDirectory={staffDirectory}
+              staffDirectory={staffMembers}
               summarySuggestion={summarySuggestion}
               teamChats={teamChats}
               toggleGroupParticipant={toggleGroupParticipant}

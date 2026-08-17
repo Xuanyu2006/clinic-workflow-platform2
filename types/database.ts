@@ -276,6 +276,127 @@ export type Database = {
           reviewed_at?: string | null;
         }
       >;
+      organization_departments: TableDefinition<
+        {
+          id: string;
+          organization_id: string;
+          name: string;
+          created_by: string | null;
+          created_at: string;
+        },
+        {
+          id?: string;
+          organization_id: string;
+          name: string;
+          created_by?: string | null;
+          created_at?: string;
+        }
+      >;
+      user_settings: TableDefinition<
+        {
+          user_id: string;
+          organization_id: string | null;
+          settings: Json;
+          updated_at: string;
+        },
+        {
+          user_id: string;
+          organization_id?: string | null;
+          settings?: Json;
+          updated_at?: string;
+        },
+        {
+          organization_id?: string | null;
+          settings?: Json;
+          updated_at?: string;
+        }
+      >;
+      communication_posts: TableDefinition<
+        {
+          id: string;
+          organization_id: string;
+          board_key: string;
+          body: string;
+          created_by: string | null;
+          created_at: string;
+        },
+        {
+          id?: string;
+          organization_id: string;
+          board_key: string;
+          body: string;
+          created_by?: string | null;
+          created_at?: string;
+        }
+      >;
+      notification_outbox: TableDefinition<
+        {
+          id: string;
+          organization_id: string;
+          channel: string;
+          recipient: string;
+          subject: string | null;
+          body: string;
+          status: string;
+          created_by: string | null;
+          created_at: string;
+          sent_at: string | null;
+        },
+        {
+          id?: string;
+          organization_id: string;
+          channel: string;
+          recipient: string;
+          subject?: string | null;
+          body: string;
+          status?: string;
+          created_by?: string | null;
+          created_at?: string;
+          sent_at?: string | null;
+        }
+      >;
+      audit_logs: TableDefinition<
+        {
+          id: string;
+          organization_id: string | null;
+          actor_id: string | null;
+          action: string;
+          resource_type: string;
+          resource_id: string | null;
+          metadata: Json;
+          created_at: string;
+        },
+        {
+          id?: string;
+          organization_id?: string | null;
+          actor_id?: string | null;
+          action: string;
+          resource_type: string;
+          resource_id?: string | null;
+          metadata?: Json;
+          created_at?: string;
+        }
+      >;
+      error_events: TableDefinition<
+        {
+          id: string;
+          organization_id: string | null;
+          user_id: string | null;
+          source: string;
+          message: string;
+          metadata: Json;
+          created_at: string;
+        },
+        {
+          id?: string;
+          organization_id?: string | null;
+          user_id?: string | null;
+          source: string;
+          message: string;
+          metadata?: Json;
+          created_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -293,6 +414,18 @@ export type Database = {
       };
       is_same_org: {
         Args: { row_organization_id: string };
+        Returns: boolean;
+      };
+      can_manage_settings: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
+      can_manage_scheduling: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
+      can_manage_tasks: {
+        Args: Record<string, never>;
         Returns: boolean;
       };
     };

@@ -26,6 +26,7 @@ In Supabase SQL Editor, run:
 
 ```text
 database/001_medbase_foundation.sql
+database/002_operational_hardening.sql
 ```
 
 This creates:
@@ -40,6 +41,9 @@ This creates:
 - messages
 - AI summary drafts
 - row-level security policies
+- departments, user settings, communication posts
+- audit logs, notification outbox, and error event foundations
+- role-aware write policies for task and schedule workflows
 
 ## 4. Auth Settings For Testing
 
