@@ -88,6 +88,37 @@ type SummarySuggestion = {
   dueDate: string;
 };
 
+type CommunicationBoardKey = "announcements" | "shiftNotes" | "dailyReminders";
+
+type CommunicationBoards = Record<CommunicationBoardKey, string[]>;
+
+type NotificationPreferences = {
+  taskApprovals: boolean;
+  overdueTasks: boolean;
+  scheduleChanges: boolean;
+  teamMessages: boolean;
+  dailyDigest: boolean;
+};
+
+type UserPreferenceSettings = {
+  organizationName: string;
+  defaultDepartment: string;
+  timezone: string;
+  dateFormat: string;
+  theme: string;
+  compactMode: boolean;
+  privacyMode: boolean;
+  sessionTimeout: string;
+  notifications: NotificationPreferences;
+};
+
+type PendingInvite = {
+  id: string;
+  email: string;
+  role: Role;
+  department: string;
+};
+
 const previewBanner = "Med Base Preview - No Real Patient Data";
 const previewOrganizationId = "00000000-0000-0000-0000-000000000001";
 const restrictedDataWarning =
@@ -233,14 +264,29 @@ const initialScheduleEvents: ScheduleEvent[] = [];
 
 const initialChats: TeamChat[] = [];
 
-const analytics = [
-  { label: "Appointment volume", value: "42", change: "+8%" },
-  { label: "No-show rate", value: "6.5%", change: "-1.2%" },
-  { label: "Average wait time", value: "14m", change: "-3m" },
-  { label: "Task completion rate", value: "82%", change: "+5%" },
-  { label: "Staff workload", value: "Balanced", change: "Stable" },
-  { label: "Phone call volume", value: "128", change: "+12%" },
-];
+const initialCommunicationBoards: CommunicationBoards = {
+  announcements: [],
+  shiftNotes: [],
+  dailyReminders: [],
+};
+
+const initialUserSettings: UserPreferenceSettings = {
+  organizationName: "Med Base",
+  defaultDepartment: "Front Desk",
+  timezone: "America/Los_Angeles",
+  dateFormat: "MM/DD/YYYY",
+  theme: "Healthcare light",
+  compactMode: false,
+  privacyMode: true,
+  sessionTimeout: "30",
+  notifications: {
+    taskApprovals: true,
+    overdueTasks: true,
+    scheduleChanges: true,
+    teamMessages: true,
+    dailyDigest: false,
+  },
+};
 
 const eventStyles = {
   Clinic: "border-teal-200 bg-teal-50 text-teal-800",
@@ -293,6 +339,26 @@ export function MedBaseDashboard() {
   const [scheduleEvents, setScheduleEvents] = useState(initialScheduleEvents);
   const [teamChats, setTeamChats] = useState(initialChats);
   const [selectedChatId, setSelectedChatId] = useState(initialChats[0]?.id ?? "");
+  const [communicationBoards, setCommunicationBoards] = useState(
+    initialCommunicationBoards,
+  );
+  const [communicationDrafts, setCommunicationDrafts] = useState<
+    Record<CommunicationBoardKey, string>
+  >({
+    announcements: "",
+    shiftNotes: "",
+    dailyReminders: "",
+  });
+  const [communicationError, setCommunicationError] = useState("");
+  const [departments, setDepartments] = useState(departmentOptions);
+  const [newDepartment, setNewDepartment] = useState("");
+  const [userSettings, setUserSettings] = useState(initialUserSettings);
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
+  const [inviteDraft, setInviteDraft] = useState({
+    email: "",
+    role: "Front Desk" as Role,
+    department: departmentOptions[0],
+  });
   const [chatDraft, setChatDraft] = useState("");
   const [messageError, setMessageError] = useState("");
   const [newGroupName, setNewGroupName] = useState("");
@@ -633,6 +699,80 @@ export function MedBaseDashboard() {
     setActiveModule("Tasks");
   }
 
+  function addCommunicationPost(board: CommunicationBoardKey) {
+    const value = communicationDrafts[board].trim();
+
+    if (!value) {
+      setCommunicationError("Enter a message before adding it to the board.");
+      return;
+    }
+
+    if (containsRestrictedPatientData(value)) {
+      setCommunicationError(restrictedDataWarning);
+      return;
+    }
+
+    setCommunicationBoards((current) => ({
+      ...current,
+      [board]: [value, ...current[board]],
+    }));
+    setCommunicationDrafts((current) => ({ ...current, [board]: "" }));
+    setCommunicationError("");
+  }
+
+  function updateNotificationPreference(
+    preference: keyof NotificationPreferences,
+    value: boolean,
+  ) {
+    setUserSettings((current) => ({
+      ...current,
+      notifications: {
+        ...current.notifications,
+        [preference]: value,
+      },
+    }));
+  }
+
+  function addDepartment() {
+    const value = newDepartment.trim();
+
+    if (!value || departments.includes(value)) {
+      return;
+    }
+
+    setDepartments((current) => [...current, value]);
+    setNewDepartment("");
+  }
+
+  function removeDepartment(department: string) {
+    setDepartments((current) => current.filter((item) => item !== department));
+    if (userSettings.defaultDepartment === department) {
+      setUserSettings((current) => ({
+        ...current,
+        defaultDepartment: departments.find((item) => item !== department) ?? "",
+      }));
+    }
+  }
+
+  function addPendingInvite() {
+    const email = inviteDraft.email.trim();
+
+    if (!email) {
+      return;
+    }
+
+    setPendingInvites((current) => [
+      {
+        id: `INV-${Date.now()}`,
+        email,
+        role: inviteDraft.role,
+        department: inviteDraft.department,
+      },
+      ...current,
+    ]);
+    setInviteDraft((current) => ({ ...current, email: "" }));
+  }
+
   function updateTaskStatus(id: string, status: TaskStatus) {
     setTasks((current) =>
       current.map((task) =>
@@ -834,9 +974,38 @@ export function MedBaseDashboard() {
               toggleGroupParticipant={toggleGroupParticipant}
             />
           )}
-          {activeModule === "Communication" && <CommunicationModule />}
-          {activeModule === "Analytics" && <AnalyticsModule />}
-          {activeModule === "Settings" && <SettingsModule />}
+          {activeModule === "Communication" && (
+            <CommunicationModule
+              addCommunicationPost={addCommunicationPost}
+              communicationBoards={communicationBoards}
+              communicationDrafts={communicationDrafts}
+              communicationError={communicationError}
+              setCommunicationDrafts={setCommunicationDrafts}
+            />
+          )}
+          {activeModule === "Analytics" && (
+            <AnalyticsModule
+              scheduleEvents={scheduleEvents}
+              tasks={tasks}
+              teamChats={teamChats}
+            />
+          )}
+          {activeModule === "Settings" && (
+            <SettingsModule
+              addDepartment={addDepartment}
+              addPendingInvite={addPendingInvite}
+              departments={departments}
+              inviteDraft={inviteDraft}
+              newDepartment={newDepartment}
+              pendingInvites={pendingInvites}
+              removeDepartment={removeDepartment}
+              setInviteDraft={setInviteDraft}
+              setNewDepartment={setNewDepartment}
+              setUserSettings={setUserSettings}
+              updateNotificationPreference={updateNotificationPreference}
+              userSettings={userSettings}
+            />
+          )}
         </main>
       </div>
     </div>
@@ -2043,51 +2212,79 @@ function MessagesModule({
   );
 }
 
-function CommunicationModule() {
+function CommunicationModule({
+  addCommunicationPost,
+  communicationBoards,
+  communicationDrafts,
+  communicationError,
+  setCommunicationDrafts,
+}: {
+  addCommunicationPost: (board: CommunicationBoardKey) => void;
+  communicationBoards: CommunicationBoards;
+  communicationDrafts: Record<CommunicationBoardKey, string>;
+  communicationError: string;
+  setCommunicationDrafts: (
+    value: Record<CommunicationBoardKey, string>,
+  ) => void;
+}) {
+  const boards: {
+    key: CommunicationBoardKey;
+    title: string;
+    description: string;
+  }[] = [
+    {
+      key: "announcements",
+      title: "Announcements",
+      description: "Organization-wide operational updates.",
+    },
+    {
+      key: "shiftNotes",
+      title: "Shift Notes",
+      description: "Handoff notes for staff coverage and workflow status.",
+    },
+    {
+      key: "dailyReminders",
+      title: "Daily Reminders",
+      description: "Non-clinical reminders for the current workday.",
+    },
+  ];
+
   return (
     <Panel
       title="Communication Boards"
       description="Announcements, shift notes, and daily reminders separate from staff texting."
     >
+      {communicationError ? (
+        <p className="mb-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
+          {communicationError}
+        </p>
+      ) : null}
       <div className="grid gap-4 xl:grid-cols-3">
-        <InfoBlock
-          title="Announcements"
-          lines={[
-            "Policy reminder posted for all staff.",
-            "Tablet check-in workflow review scheduled.",
-          ]}
-        />
-        <InfoBlock
-          title="Shift Notes"
-          lines={[
-            "Morning shift completed operational handoff.",
-            "SNF coordination queue reviewed by staff.",
-          ]}
-        />
-        <InfoBlock
-          title="Daily Reminders"
-          lines={[
-            "Review overdue tasks before end of shift.",
-            "Confirm tomorrow's provider and staff schedule blocks.",
-          ]}
-        />
-      </div>
-    </Panel>
-  );
-}
-
-function AnalyticsModule() {
-  return (
-    <Panel
-      title="Analytics"
-      description="Operational metrics only. No medical information or billing data."
-    >
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {analytics.map((metric) => (
-          <div key={metric.label} className="rounded-lg border border-border p-4">
-            <p className="text-sm text-muted-foreground">{metric.label}</p>
-            <p className="mt-2 text-3xl font-semibold">{metric.value}</p>
-            <p className="mt-2 text-sm text-primary">{metric.change}</p>
+        {boards.map((board) => (
+          <div
+            key={board.key}
+            className="rounded-lg border border-border bg-background p-4"
+          >
+            <h3 className="font-semibold">{board.title}</h3>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+              {board.description}
+            </p>
+            <textarea
+              className="mt-4 min-h-28 w-full rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              value={communicationDrafts[board.key]}
+              onChange={(event) =>
+                setCommunicationDrafts({
+                  ...communicationDrafts,
+                  [board.key]: event.target.value,
+                })
+              }
+            />
+            <Button className="mt-3 w-full" onClick={() => addCommunicationPost(board.key)}>
+              Add update
+            </Button>
+            <div className="mt-4">
+              <StackedList items={communicationBoards[board.key]} />
+            </div>
           </div>
         ))}
       </div>
@@ -2095,34 +2292,377 @@ function AnalyticsModule() {
   );
 }
 
-function SettingsModule() {
+function AnalyticsModule({
+  scheduleEvents,
+  tasks,
+  teamChats,
+}: {
+  scheduleEvents: ScheduleEvent[];
+  tasks: Task[];
+  teamChats: TeamChat[];
+}) {
+  const completedTasks = tasks.filter((task) => task.status === "Completed");
+  const activeTasks = tasks.filter(
+    (task) => task.status !== "Completed" && task.status !== "Cancelled",
+  );
+  const messages = teamChats.reduce(
+    (total, chat) => total + chat.messages.length,
+    0,
+  );
+  const taskCompletionRate =
+    tasks.length === 0
+      ? "No data"
+      : `${Math.round((completedTasks.length / tasks.length) * 100)}%`;
+  const staffWorkload =
+    activeTasks.length === 0
+      ? "No active tasks"
+      : activeTasks.length > 8
+        ? "High"
+        : activeTasks.length > 3
+          ? "Moderate"
+          : "Light";
+  const metrics = [
+    {
+      label: "Appointment volume",
+      value: String(
+        scheduleEvents.filter(
+          (event) => event.type === "Clinic" || event.type === "SNF",
+        ).length,
+      ),
+      detail: "Scheduled appointment-related events.",
+    },
+    {
+      label: "No-show rate",
+      value: "No data",
+      detail: "Connect appointment outcomes before calculating this metric.",
+    },
+    {
+      label: "Average wait time",
+      value: "No data",
+      detail: "Connect check-in timestamps before calculating this metric.",
+    },
+    {
+      label: "Task completion rate",
+      value: taskCompletionRate,
+      detail: `${completedTasks.length} of ${tasks.length} tasks completed.`,
+    },
+    {
+      label: "Staff workload",
+      value: staffWorkload,
+      detail: `${activeTasks.length} active tasks across the workspace.`,
+    },
+    {
+      label: "Team message volume",
+      value: String(messages),
+      detail: "Internal operational messages only.",
+    },
+  ];
+
+  return (
+    <Panel
+      title="Analytics"
+      description="Operational metrics only. No medical information or billing data."
+    >
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {metrics.map((metric) => (
+          <div key={metric.label} className="rounded-lg border border-border p-4">
+            <p className="text-sm text-muted-foreground">{metric.label}</p>
+            <p className="mt-2 text-3xl font-semibold">{metric.value}</p>
+            <p className="mt-2 text-sm text-muted-foreground">{metric.detail}</p>
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+function SettingsModule({
+  addDepartment,
+  addPendingInvite,
+  departments,
+  inviteDraft,
+  newDepartment,
+  pendingInvites,
+  removeDepartment,
+  setInviteDraft,
+  setNewDepartment,
+  setUserSettings,
+  updateNotificationPreference,
+  userSettings,
+}: {
+  addDepartment: () => void;
+  addPendingInvite: () => void;
+  departments: string[];
+  inviteDraft: { email: string; role: Role; department: string };
+  newDepartment: string;
+  pendingInvites: PendingInvite[];
+  removeDepartment: (department: string) => void;
+  setInviteDraft: (value: { email: string; role: Role; department: string }) => void;
+  setNewDepartment: (value: string) => void;
+  setUserSettings: (value: UserPreferenceSettings) => void;
+  updateNotificationPreference: (
+    preference: keyof NotificationPreferences,
+    value: boolean,
+  ) => void;
+  userSettings: UserPreferenceSettings;
+}) {
+  const notificationOptions: {
+    key: keyof NotificationPreferences;
+    label: string;
+  }[] = [
+    { key: "taskApprovals", label: "Task approvals" },
+    { key: "overdueTasks", label: "Overdue tasks" },
+    { key: "scheduleChanges", label: "Schedule changes" },
+    { key: "teamMessages", label: "Team messages" },
+    { key: "dailyDigest", label: "Daily digest" },
+  ];
+
   return (
     <Panel
       title="Settings"
-      description="Organization and role-management controls for future expansion."
+      description="Operational preferences, access controls, and privacy defaults for Med Base."
     >
-      <div className="grid gap-4 xl:grid-cols-2">
-        <InfoBlock
-          title="Organization Information"
-          lines={["Med Base Operations Group", "Multi-site workflow preview"]}
-        />
-        <InfoBlock
-          title="Departments"
-          lines={departmentOptions}
-        />
-        <InfoBlock
-          title="Notification Preferences"
-          lines={["Task approvals", "Overdue tasks", "Schedule changes"]}
-        />
-        <InfoBlock title="Theme" lines={["Healthcare light theme", "High contrast ready"]} />
-        <InfoBlock
-          title="User Management"
-          lines={["Invite staff", "Deactivate user", "Assign department"]}
-        />
-        <InfoBlock
-          title="Role Management"
-          lines={roles.map((option) => `${option}: configurable permissions`)}
-        />
+      <div className="grid gap-5 xl:grid-cols-2">
+        <section className="rounded-lg border border-border bg-background p-4">
+          <h3 className="font-semibold">Organization</h3>
+          <div className="mt-4 grid gap-3">
+            <Field label="Organization name">
+              <input
+                className={inputClassName}
+                value={userSettings.organizationName}
+                onChange={(event) =>
+                  setUserSettings({
+                    ...userSettings,
+                    organizationName: event.target.value,
+                  })
+                }
+              />
+            </Field>
+            <Field label="Default department">
+              <select
+                className={inputClassName}
+                value={userSettings.defaultDepartment}
+                onChange={(event) =>
+                  setUserSettings({
+                    ...userSettings,
+                    defaultDepartment: event.target.value,
+                  })
+                }
+              >
+                {departments.map((department) => (
+                  <option key={department} value={department}>
+                    {department}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Timezone">
+              <select
+                className={inputClassName}
+                value={userSettings.timezone}
+                onChange={(event) =>
+                  setUserSettings({ ...userSettings, timezone: event.target.value })
+                }
+              >
+                <option value="America/Los_Angeles">Pacific Time</option>
+                <option value="America/Denver">Mountain Time</option>
+                <option value="America/Chicago">Central Time</option>
+                <option value="America/New_York">Eastern Time</option>
+              </select>
+            </Field>
+            <Field label="Date format">
+              <select
+                className={inputClassName}
+                value={userSettings.dateFormat}
+                onChange={(event) =>
+                  setUserSettings({
+                    ...userSettings,
+                    dateFormat: event.target.value,
+                  })
+                }
+              >
+                <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+              </select>
+            </Field>
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-border bg-background p-4">
+          <h3 className="font-semibold">Departments</h3>
+          <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <input
+              className={inputClassName}
+              value={newDepartment}
+              onChange={(event) => setNewDepartment(event.target.value)}
+            />
+            <Button onClick={addDepartment}>Add</Button>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {departments.map((department) => (
+              <button
+                key={department}
+                className="rounded-full border border-border bg-white px-3 py-1.5 text-sm text-muted-foreground transition hover:border-primary hover:text-primary"
+                type="button"
+                onClick={() => removeDepartment(department)}
+              >
+                {department} x
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-border bg-background p-4">
+          <h3 className="font-semibold">Notifications</h3>
+          <div className="mt-4 grid gap-3">
+            {notificationOptions.map((option) => (
+              <label
+                key={option.key}
+                className="flex items-center justify-between gap-4 rounded-md border border-border bg-white px-3 py-2 text-sm"
+              >
+                <span>{option.label}</span>
+                <input
+                  checked={userSettings.notifications[option.key]}
+                  type="checkbox"
+                  onChange={(event) =>
+                    updateNotificationPreference(option.key, event.target.checked)
+                  }
+                />
+              </label>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-border bg-background p-4">
+          <h3 className="font-semibold">Display And Security</h3>
+          <div className="mt-4 grid gap-3">
+            <Field label="Theme">
+              <select
+                className={inputClassName}
+                value={userSettings.theme}
+                onChange={(event) =>
+                  setUserSettings({ ...userSettings, theme: event.target.value })
+                }
+              >
+                <option value="Healthcare light">Healthcare light</option>
+                <option value="High contrast">High contrast</option>
+                <option value="System default">System default</option>
+              </select>
+            </Field>
+            <Field label="Session timeout">
+              <select
+                className={inputClassName}
+                value={userSettings.sessionTimeout}
+                onChange={(event) =>
+                  setUserSettings({
+                    ...userSettings,
+                    sessionTimeout: event.target.value,
+                  })
+                }
+              >
+                <option value="15">15 minutes</option>
+                <option value="30">30 minutes</option>
+                <option value="60">60 minutes</option>
+              </select>
+            </Field>
+            <label className="flex items-center justify-between gap-4 rounded-md border border-border bg-white px-3 py-2 text-sm">
+              <span>Compact layout</span>
+              <input
+                checked={userSettings.compactMode}
+                type="checkbox"
+                onChange={(event) =>
+                  setUserSettings({
+                    ...userSettings,
+                    compactMode: event.target.checked,
+                  })
+                }
+              />
+            </label>
+            <label className="flex items-center justify-between gap-4 rounded-md border border-border bg-white px-3 py-2 text-sm">
+              <span>Privacy mode by default</span>
+              <input
+                checked={userSettings.privacyMode}
+                type="checkbox"
+                onChange={(event) =>
+                  setUserSettings({
+                    ...userSettings,
+                    privacyMode: event.target.checked,
+                  })
+                }
+              />
+            </label>
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-border bg-background p-4">
+          <h3 className="font-semibold">User Management</h3>
+          <div className="mt-4 grid gap-3">
+            <input
+              className={inputClassName}
+              value={inviteDraft.email}
+              onChange={(event) =>
+                setInviteDraft({ ...inviteDraft, email: event.target.value })
+              }
+            />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <select
+                className={inputClassName}
+                value={inviteDraft.role}
+                onChange={(event) =>
+                  setInviteDraft({
+                    ...inviteDraft,
+                    role: event.target.value as Role,
+                  })
+                }
+              >
+                {roles.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+              <select
+                className={inputClassName}
+                value={inviteDraft.department}
+                onChange={(event) =>
+                  setInviteDraft({
+                    ...inviteDraft,
+                    department: event.target.value,
+                  })
+                }
+              >
+                {departments.map((department) => (
+                  <option key={department} value={department}>
+                    {department}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Button onClick={addPendingInvite}>Create invite draft</Button>
+            <StackedList
+              items={pendingInvites.map(
+                (invite) =>
+                  `${invite.email} - ${invite.role} - ${invite.department}`,
+              )}
+            />
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-border bg-background p-4">
+          <h3 className="font-semibold">Role Management</h3>
+          <div className="mt-4 grid gap-2">
+            {roles.map((option) => (
+              <div
+                key={option}
+                className="rounded-md border border-border bg-white px-3 py-2 text-sm text-muted-foreground"
+              >
+                <span className="font-medium text-foreground">{option}</span>
+                <span> - {rolePermissions[option].join(", ")}</span>
+              </div>
+            ))}
+          </div>
+        </section>
       </div>
     </Panel>
   );
