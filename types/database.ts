@@ -37,9 +37,9 @@ export type ScheduleEventType = "Clinic" | "SNF" | "Staff Shift" | "Admin";
 export type ChatType = "Direct" | "Group";
 
 type TableDefinition<Row, Insert = Partial<Row>, Update = Partial<Row>> = {
-  Row: Row;
-  Insert: Insert;
-  Update: Update;
+  Row: Row & Record<string, unknown>;
+  Insert: Insert & Record<string, unknown>;
+  Update: Update & Record<string, unknown>;
   Relationships: never[];
 };
 
@@ -398,7 +398,9 @@ export type Database = {
         }
       >;
     };
-    Views: Record<string, never>;
+    Views: {
+      [_ in never]: never;
+    };
     Functions: {
       current_user_organization_id: {
         Args: Record<string, never>;
@@ -436,6 +438,8 @@ export type Database = {
       schedule_event_type: ScheduleEventType;
       chat_type: ChatType;
     };
-    CompositeTypes: Record<string, never>;
+    CompositeTypes: {
+      [_ in never]: never;
+    };
   };
 };

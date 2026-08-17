@@ -27,6 +27,7 @@ In Supabase SQL Editor, run:
 ```text
 database/001_medbase_foundation.sql
 database/002_operational_hardening.sql
+database/003_multi_tenant_organizations.sql
 ```
 
 This creates:
@@ -36,6 +37,7 @@ This creates:
 - tasks
 - appointments
 - schedule events
+- separate organization workspaces for new company accounts
 - conversations
 - conversation members
 - messages

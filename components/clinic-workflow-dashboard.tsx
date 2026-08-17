@@ -377,6 +377,7 @@ export function MedBaseDashboard() {
     email: "",
     password: "",
     confirmPassword: "",
+    organizationName: "",
   });
   const [activeModule, setActiveModule] = useState<Module>("Dashboard");
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
@@ -615,7 +616,8 @@ export function MedBaseDashboard() {
           post.board_key === "shiftNotes" ||
           post.board_key === "dailyReminders"
         ) {
-          nextBoards[post.board_key].push(post.body);
+          const boardKey = post.board_key as CommunicationBoardKey;
+          nextBoards[boardKey].push(post.body);
         }
       });
       setCommunicationBoards(nextBoards);
@@ -670,7 +672,21 @@ export function MedBaseDashboard() {
       return;
     }
 
-    await supabase.from("user_profiles").upsert({
+    const { data: existingProfile } = await supabase
+      .from("user_profiles")
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (existingProfile) {
+      await supabase
+        .from("user_profiles")
+        .update({ email: user.email })
+        .eq("id", user.id);
+      return;
+    }
+
+    await supabase.from("user_profiles").insert({
       id: user.id,
       organization_id: previewOrganizationId,
       email: user.email,
@@ -701,6 +717,11 @@ export function MedBaseDashboard() {
       return;
     }
 
+    if (authMode === "create" && !authForm.organizationName.trim()) {
+      setAuthError("Enter your company or clinic name to create a workspace.");
+      return;
+    }
+
     if (!supabase) {
       setUserEmail(authForm.email);
       setAuthNotice(
@@ -708,7 +729,7 @@ export function MedBaseDashboard() {
       );
       setAuthStatus("signed-in");
       setAuthError("");
-      setAuthForm({ email: "", password: "", confirmPassword: "" });
+      setAuthForm({ email: "", password: "", confirmPassword: "", organizationName: "" });
       setAuthView("landing");
       setActiveModule("Dashboard");
       return;
@@ -724,7 +745,7 @@ export function MedBaseDashboard() {
         options: {
           data: {
             role,
-            organization_id: previewOrganizationId,
+            organization_name: authForm.organizationName.trim(),
           },
         },
       });
@@ -742,12 +763,12 @@ export function MedBaseDashboard() {
         setAuthNotice(
           "Account created. Check email verification settings in Supabase if login is not immediate.",
         );
-        setAuthForm({ email: "", password: "", confirmPassword: "" });
+        setAuthForm({ email: "", password: "", confirmPassword: "", organizationName: "" });
         return;
       }
 
       await loadAuthenticatedUser(data.session.user);
-      setAuthForm({ email: "", password: "", confirmPassword: "" });
+      setAuthForm({ email: "", password: "", confirmPassword: "", organizationName: "" });
       setActiveModule("Dashboard");
       return;
     }
@@ -767,7 +788,7 @@ export function MedBaseDashboard() {
       await loadAuthenticatedUser(data.user);
     }
 
-    setAuthForm({ email: "", password: "", confirmPassword: "" });
+    setAuthForm({ email: "", password: "", confirmPassword: "", organizationName: "" });
     setActiveModule("Dashboard");
   }
 
@@ -1356,6 +1377,7 @@ export function MedBaseDashboard() {
               messageError={messageError}
               sendTeamMessage={sendTeamMessage}
               setChatDraft={setChatDraft}
+              setMessageError={setMessageError}
               setNewGroupName={setNewGroupName}
               setParticipantToAdd={setParticipantToAdd}
               staffDirectory={staffMembers}
@@ -1837,13 +1859,23 @@ function AuthScreen({
   submit,
 }: {
   authError: string;
-  authForm: { email: string; password: string; confirmPassword: string };
+  authForm: {
+    email: string;
+    password: string;
+    confirmPassword: string;
+    organizationName: string;
+  };
   authMode: "login" | "create";
   authNotice: string;
   isSupabaseConfigured: boolean;
   onBack: () => void;
   role: Role;
-  setAuthForm: (form: { email: string; password: string; confirmPassword: string }) => void;
+  setAuthForm: (form: {
+    email: string;
+    password: string;
+    confirmPassword: string;
+    organizationName: string;
+  }) => void;
   setAuthMode: (mode: "login" | "create") => void;
   setRole: (role: Role) => void;
   submit: () => void | Promise<void>;
@@ -1914,6 +1946,23 @@ function AuthScreen({
               }
             />
           </Field>
+
+          {isCreate ? (
+            <Field label="Company or clinic name">
+              <input
+                autoComplete="organization"
+                className={inputClassName}
+                type="text"
+                value={authForm.organizationName}
+                onChange={(event) =>
+                  setAuthForm({
+                    ...authForm,
+                    organizationName: event.target.value,
+                  })
+                }
+              />
+            </Field>
+          ) : null}
 
           <Field label="Password">
             <div className="grid grid-cols-[minmax(0,1fr)_auto] overflow-hidden rounded-md border border-border bg-white focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
@@ -2386,6 +2435,7 @@ function MessagesModule({
   selectedChatId,
   sendTeamMessage,
   setChatDraft,
+  setMessageError,
   setNewGroupName,
   setParticipantToAdd,
   staffDirectory,
@@ -2406,6 +2456,7 @@ function MessagesModule({
   selectedChatId: string;
   sendTeamMessage: () => void;
   setChatDraft: (value: string) => void;
+  setMessageError: (value: string) => void;
   setNewGroupName: (value: string) => void;
   setParticipantToAdd: (value: string) => void;
   staffDirectory: { name: string; role: Role; department: string }[];

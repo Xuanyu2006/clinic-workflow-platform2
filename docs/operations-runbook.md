@@ -14,6 +14,7 @@ Run migrations in Supabase SQL Editor in order:
 
 1. `database/001_medbase_foundation.sql`
 2. `database/002_operational_hardening.sql`
+3. `database/003_multi_tenant_organizations.sql`
 
 ## Monitoring
 

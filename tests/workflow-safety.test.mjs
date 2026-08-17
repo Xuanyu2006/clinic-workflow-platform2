@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 
 const dashboard = readFileSync("components/clinic-workflow-dashboard.tsx", "utf8");
 const hardeningSql = readFileSync("database/002_operational_hardening.sql", "utf8");
+const tenancySql = readFileSync("database/003_multi_tenant_organizations.sql", "utf8");
 
 test("signup password policy requires letters numbers and special characters", () => {
   assert.match(dashboard, /function isStrongPassword/);
@@ -44,4 +45,16 @@ test("role-aware database policies are present for writable workflows", () => {
   assert.match(hardeningSql, /can_manage_tasks/);
   assert.match(hardeningSql, /tasks_role_write/);
   assert.match(hardeningSql, /schedule_events_role_write/);
+});
+
+test("new account signup creates an organization-scoped workspace", () => {
+  const signUpStart = dashboard.indexOf("supabase.auth.signUp({");
+  const signUpCall = dashboard.slice(signUpStart, dashboard.indexOf("});", signUpStart));
+
+  assert.match(dashboard, /organizationName/);
+  assert.match(dashboard, /organization_name: authForm\.organizationName\.trim\(\)/);
+  assert.doesNotMatch(signUpCall, /organization_id:\s*previewOrganizationId/);
+  assert.match(tenancySql, /new\.raw_user_meta_data ->> 'organization_name'/);
+  assert.match(tenancySql, /insert into public\.organizations \(name\)/);
+  assert.match(tenancySql, /assigned_organization_id/);
 });
