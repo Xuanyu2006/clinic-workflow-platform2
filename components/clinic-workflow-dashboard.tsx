@@ -242,21 +242,7 @@ const departmentOptions = [
   "Administration",
 ];
 
-const staffDirectory: { name: string; role: Role; department: string }[] = [
-  { name: "Dr. Priya Foster", role: "Physician", department: "Clinical Operations" },
-  { name: "Lena Ortiz, RN", role: "Nurse", department: "Clinical Operations" },
-  { name: "Marcus Reid, MA", role: "Medical Assistant", department: "Clinic Support" },
-  { name: "Sofia Patel", role: "Front Desk", department: "Front Desk" },
-  { name: "Evan Brooks", role: "Scheduler", department: "Scheduling" },
-  { name: "Talia Nguyen", role: "Therapist", department: "Therapy" },
-  { name: "Naomi Reed", role: "Office Manager", department: "Administration" },
-  { name: "Amira Khan", role: "Patient Coordinator", department: "Care Coordination" },
-  { name: "Miles Carter", role: "Referral Coordinator", department: "Referrals" },
-  { name: "Renee Park", role: "SNF Coordinator", department: "SNF Coordination" },
-  { name: "Oliver Stone", role: "Records Coordinator", department: "Records" },
-  { name: "Harper Wells", role: "Operations Lead", department: "Administration" },
-  { name: "Camila Torres", role: "Receptionist", department: "Front Desk" },
-];
+const staffDirectory: { name: string; role: Role; department: string }[] = [];
 
 const initialTasks: Task[] = [];
 
@@ -362,10 +348,7 @@ export function MedBaseDashboard() {
   const [chatDraft, setChatDraft] = useState("");
   const [messageError, setMessageError] = useState("");
   const [newGroupName, setNewGroupName] = useState("");
-  const [newGroupParticipants, setNewGroupParticipants] = useState<string[]>([
-    "Dr. Priya Foster",
-    "Lena Ortiz, RN",
-  ]);
+  const [newGroupParticipants, setNewGroupParticipants] = useState<string[]>([]);
   const [participantToAdd, setParticipantToAdd] = useState(staffDirectory[0]?.name ?? "");
   const [summarySuggestion, setSummarySuggestion] =
     useState<SummarySuggestion | null>(null);
@@ -635,7 +618,7 @@ export function MedBaseDashboard() {
   }
 
   function createGroupChat() {
-    if (!newGroupName.trim() || newGroupParticipants.length === 0) {
+    if (!newGroupName.trim()) {
       return;
     }
 
@@ -2044,25 +2027,29 @@ function MessagesModule({
                 />
               </label>
               <div className="mt-3 grid gap-2">
-                {staffDirectory.map((staff) => (
-                  <label
-                    key={staff.name}
-                    className="flex items-start gap-2 rounded-md border border-border bg-white px-3 py-2 text-sm"
-                  >
-                    <input
-                      checked={newGroupParticipants.includes(staff.name)}
-                      className="mt-1"
-                      type="checkbox"
-                      onChange={() => toggleGroupParticipant(staff.name)}
-                    />
-                    <span>
-                      <span className="block font-medium">{staff.name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {staff.role} - {staff.department}
+                {staffDirectory.length === 0 ? (
+                  <EmptyState message="No staff users loaded yet. Create invite drafts in Settings or connect user profiles from Supabase." />
+                ) : (
+                  staffDirectory.map((staff) => (
+                    <label
+                      key={staff.name}
+                      className="flex items-start gap-2 rounded-md border border-border bg-white px-3 py-2 text-sm"
+                    >
+                      <input
+                        checked={newGroupParticipants.includes(staff.name)}
+                        className="mt-1"
+                        type="checkbox"
+                        onChange={() => toggleGroupParticipant(staff.name)}
+                      />
+                      <span>
+                        <span className="block font-medium">{staff.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {staff.role} - {staff.department}
+                        </span>
                       </span>
-                    </span>
-                  </label>
-                ))}
+                    </label>
+                  ))
+                )}
               </div>
               <Button className="mt-3 w-full" onClick={createGroupChat}>
                 Create group
@@ -2085,7 +2072,10 @@ function MessagesModule({
                 >
                   <span className="block font-semibold">{chat.name}</span>
                   <span>
-                    {chat.type} - {chat.participants.join(", ")}
+                    {chat.type} -{" "}
+                    {chat.participants.length > 0
+                      ? chat.participants.join(", ")
+                      : "No participants added"}
                   </span>
                 </button>
               ))
@@ -2099,22 +2089,35 @@ function MessagesModule({
               </h3>
               <p className="mt-1 text-sm text-muted-foreground">
                 {selectedChat
-                  ? `${selectedChat.type} chat - ${selectedChat.participants.join(", ")}`
+                  ? `${selectedChat.type} chat - ${
+                      selectedChat.participants.length > 0
+                        ? selectedChat.participants.join(", ")
+                        : "No participants added"
+                    }`
                   : "Choose a direct message or group chat."}
               </p>
               <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                 <select
                   className={inputClassName}
+                  disabled={staffDirectory.length === 0}
                   value={participantToAdd}
                   onChange={(event) => setParticipantToAdd(event.target.value)}
                 >
-                  {staffDirectory.map((staff) => (
-                    <option key={staff.name} value={staff.name}>
-                      {staff.name} - {staff.role}
-                    </option>
-                  ))}
+                  {staffDirectory.length === 0 ? (
+                    <option value="">No staff users loaded</option>
+                  ) : (
+                    staffDirectory.map((staff) => (
+                      <option key={staff.name} value={staff.name}>
+                        {staff.name} - {staff.role}
+                      </option>
+                    ))
+                  )}
                 </select>
-                <Button variant="secondary" onClick={addParticipantToChat}>
+                <Button
+                  variant="secondary"
+                  onClick={addParticipantToChat}
+                  disabled={staffDirectory.length === 0}
+                >
                   Add person
                 </Button>
               </div>

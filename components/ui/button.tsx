@@ -17,7 +17,7 @@ export function Button({
 }: ButtonProps) {
   return (
     <button
-      className={`inline-flex h-10 items-center justify-center rounded-md px-4 text-sm font-medium transition ${variantClassName[variant]} ${className}`}
+      className={`inline-flex h-10 items-center justify-center rounded-md px-4 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${variantClassName[variant]} ${className}`}
       type={type}
       {...props}
     />
