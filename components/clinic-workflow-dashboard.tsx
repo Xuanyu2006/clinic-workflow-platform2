@@ -119,7 +119,6 @@ type PendingInvite = {
   department: string;
 };
 
-const previewBanner = "Med Base Preview - No Real Patient Data";
 const previewOrganizationId = "00000000-0000-0000-0000-000000000001";
 const restrictedDataWarning =
   "Do not enter real patient data. Remove identifiers or clinical details before sending.";
@@ -1280,9 +1279,6 @@ export function MedBaseDashboard() {
               <p className="mt-1 text-sm text-muted-foreground">
                 Signed in as {userEmail} - {role}
               </p>
-              <p className="mt-1 text-xs font-medium text-primary">
-                Preview - No Real Patient Data
-              </p>
             </div>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -1462,12 +1458,11 @@ function LandingPage({
     "Role-based access",
     "Group coordination",
     "Review before action",
-    "Fictional records only",
+    "Scoped workflows",
   ];
 
   return (
     <main className="min-h-dvh bg-white text-foreground">
-      <PreviewBanner />
       <header className="sticky top-0 z-10 border-b border-border bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
           <button
@@ -1500,7 +1495,7 @@ function LandingPage({
       >
         <div>
           <StatusPill className="bg-primary/10 text-primary ring-primary/20">
-            Preview
+            Healthcare operations
           </StatusPill>
           <h1 className="mt-5 max-w-xl text-4xl font-semibold leading-tight tracking-normal md:text-5xl">
             Med Base coordinates healthcare operations without becoming an EHR
@@ -1785,7 +1780,7 @@ function LandingPage({
               </StatusPill>
               <p className="mt-4 font-semibold">{item}</p>
               <p className="mt-2 text-sm text-muted-foreground">
-                Preview workflow stage.
+                Configurable workflow stage.
               </p>
             </div>
           ))}
@@ -1833,7 +1828,7 @@ function LandingPage({
           <div>
             <MedBaseLogo compact />
             <p className="mt-3 max-w-sm leading-6 text-muted-foreground">
-              Preview - No Real Patient Data.
+              Healthcare workflow coordination for modern teams.
             </p>
           </div>
           <InfoBlock title="Product" lines={["Features", "Integrations", "Roadmap"]} />
@@ -1886,7 +1881,6 @@ function AuthScreen({
   return (
     <main className="flex min-h-dvh items-center justify-center bg-background px-5 py-10 text-foreground">
       <section className="w-full max-w-md rounded-lg border border-border bg-white p-6 shadow-sm">
-        <PreviewBanner />
         <button
           className="mt-5 text-sm font-medium text-muted-foreground hover:text-foreground"
           type="button"
@@ -3142,14 +3136,6 @@ function MedBaseLogo({ compact = false }: { compact?: boolean }) {
       />
       <span className="sr-only">Med Base</span>
     </span>
-  );
-}
-
-function PreviewBanner() {
-  return (
-    <div className="bg-primary px-4 py-2 text-center text-xs font-semibold uppercase text-primary-foreground">
-      {previewBanner}
-    </div>
   );
 }
 
