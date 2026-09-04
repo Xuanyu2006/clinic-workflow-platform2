@@ -58,3 +58,22 @@ test("new account signup creates an organization-scoped workspace", () => {
   assert.match(tenancySql, /insert into public\.organizations \(name\)/);
   assert.match(tenancySql, /assigned_organization_id/);
 });
+
+test("new schedule item opens a modal with appointment fields", () => {
+  assert.match(dashboard, /function ScheduleItemModal/);
+  assert.match(dashboard, /setIsScheduleModalOpen\(true\)/);
+  assert.match(dashboard, /New Schedule Item/);
+  assert.match(dashboard, /Appointment type/);
+  assert.match(dashboard, /Appointment time/);
+  assert.match(dashboard, /Appointment details/);
+  assert.match(dashboard, /createScheduleItem/);
+});
+
+test("schedule views render daily weekly and monthly calendars", () => {
+  assert.match(dashboard, /scheduleView === "Daily"/);
+  assert.match(dashboard, /scheduleView === "Weekly"/);
+  assert.match(dashboard, /scheduleView === "Monthly"/);
+  assert.match(dashboard, /getMonthCalendarDays/);
+  assert.match(dashboard, /eventDotStyles/);
+  assert.match(dashboard, /function ScheduleEventCard/);
+});

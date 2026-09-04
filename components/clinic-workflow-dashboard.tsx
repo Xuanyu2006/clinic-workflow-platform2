@@ -59,9 +59,11 @@ type ScheduleEvent = {
   id: string;
   title: string;
   owner: string;
+  startsAt?: string;
   day: string;
   time: string;
   type: "Clinic" | "SNF" | "Staff Shift" | "Admin";
+  details?: string;
 };
 
 type ChatMessage = {
@@ -280,6 +282,13 @@ const eventStyles = {
   Admin: "border-amber-200 bg-amber-50 text-amber-800",
 };
 
+const eventDotStyles: Record<ScheduleEvent["type"], string> = {
+  Clinic: "bg-teal-500",
+  SNF: "bg-violet-500",
+  "Staff Shift": "bg-sky-500",
+  Admin: "bg-amber-500",
+};
+
 const statusStyles: Record<TaskStatus, string> = {
   Draft: "bg-slate-100 text-slate-700 ring-slate-200",
   "Pending Approval": "bg-amber-50 text-amber-700 ring-amber-200",
@@ -310,6 +319,37 @@ function formatScheduleTime(value: string) {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function formatScheduleDate(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+  }).format(new Date(value));
+}
+
+function getScheduleDate(event: ScheduleEvent) {
+  return event.startsAt ? new Date(event.startsAt) : null;
+}
+
+function isSameCalendarDate(firstDate: Date, secondDate: Date) {
+  return (
+    firstDate.getFullYear() === secondDate.getFullYear() &&
+    firstDate.getMonth() === secondDate.getMonth() &&
+    firstDate.getDate() === secondDate.getDate()
+  );
+}
+
+function getMonthCalendarDays(monthDate: Date) {
+  const firstDay = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+  const calendarStart = new Date(firstDay);
+  calendarStart.setDate(firstDay.getDate() - firstDay.getDay());
+
+  return Array.from({ length: 35 }, (_, index) => {
+    const date = new Date(calendarStart);
+    date.setDate(calendarStart.getDate() + index);
+    return date;
+  });
 }
 
 function formatDueDate(value: string | null) {
@@ -385,6 +425,15 @@ export function MedBaseDashboard() {
     "Weekly",
   );
   const [scheduleEvents, setScheduleEvents] = useState(initialScheduleEvents);
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [scheduleError, setScheduleError] = useState("");
+  const [scheduleDraft, setScheduleDraft] = useState({
+    title: "",
+    owner: "",
+    startsAt: "",
+    type: "Clinic" as ScheduleEvent["type"],
+    details: "",
+  });
   const [teamChats, setTeamChats] = useState(initialChats);
   const [selectedChatId, setSelectedChatId] = useState(initialChats[0]?.id ?? "");
   const [communicationBoards, setCommunicationBoards] = useState(
@@ -575,9 +624,11 @@ export function MedBaseDashboard() {
           id: event.id,
           title: event.title,
           owner: event.owner,
+          startsAt: event.starts_at,
           day: formatScheduleDay(event.starts_at),
           time: formatScheduleTime(event.starts_at),
           type: event.event_type,
+          details: event.location ?? "",
         })),
       );
     }
@@ -805,19 +856,93 @@ export function MedBaseDashboard() {
 
   async function moveScheduleEvent(eventId: string, day: string) {
     const eventToMove = scheduleEvents.find((event) => event.id === eventId);
+    const nextStartsAt = eventToMove ? dateForWeekday(day, eventToMove.time) : "";
 
     setScheduleEvents((current) =>
-      current.map((event) => (event.id === eventId ? { ...event, day } : event)),
+      current.map((event) =>
+        event.id === eventId ? { ...event, day, startsAt: nextStartsAt } : event,
+      ),
     );
 
     if (supabase && eventToMove) {
       await supabase
         .from("schedule_events")
-        .update({ starts_at: dateForWeekday(day, eventToMove.time) })
+        .update({ starts_at: nextStartsAt })
         .eq("id", eventId);
     }
 
     await writeAuditLog("schedule_event.moved", "schedule_events", eventId);
+  }
+
+  async function createScheduleItem() {
+    if (
+      !scheduleDraft.title.trim() ||
+      !scheduleDraft.owner.trim() ||
+      !scheduleDraft.startsAt
+    ) {
+      setScheduleError("Enter the appointment type, time, and details.");
+      return;
+    }
+
+    if (containsRestrictedPatientData(scheduleDraft.details)) {
+      setScheduleError(restrictedDataWarning);
+      return;
+    }
+
+    const startsAt = new Date(scheduleDraft.startsAt).toISOString();
+    let persistedScheduleId = `SCHEDULE-${Date.now()}`;
+
+    if (supabase) {
+      const { data, error } = await supabase
+        .from("schedule_events")
+        .insert({
+          organization_id: currentOrganizationId,
+          title: scheduleDraft.title.trim(),
+          owner: scheduleDraft.owner.trim(),
+          starts_at: startsAt,
+          event_type: scheduleDraft.type,
+          location: scheduleDraft.details.trim() || null,
+          created_by: currentUserId || null,
+        })
+        .select("id")
+        .single();
+
+      if (error) {
+        setScheduleError(error.message);
+        return;
+      }
+
+      persistedScheduleId = data.id;
+      await writeAuditLog(
+        "schedule_event.created",
+        "schedule_events",
+        persistedScheduleId,
+      );
+    }
+
+    setScheduleEvents((current) => [
+      ...current,
+      {
+        id: persistedScheduleId,
+        title: scheduleDraft.title.trim(),
+        owner: scheduleDraft.owner.trim(),
+        startsAt,
+        day: formatScheduleDay(startsAt),
+        time: formatScheduleTime(startsAt),
+        type: scheduleDraft.type,
+        details: scheduleDraft.details.trim(),
+      },
+    ]);
+    setScheduleDraft({
+      title: "",
+      owner: "",
+      startsAt: "",
+      type: "Clinic",
+      details: "",
+    });
+    setScheduleError("");
+    setIsScheduleModalOpen(false);
+    setActiveModule("Scheduling");
   }
 
   async function sendTeamMessage() {
@@ -1282,7 +1407,13 @@ export function MedBaseDashboard() {
             </div>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Button className="gap-2" onClick={() => setActiveModule("Scheduling")}>
+            <Button
+              className="gap-2"
+              onClick={() => {
+                setScheduleError("");
+                setIsScheduleModalOpen(true);
+              }}
+            >
               <span className="text-lg leading-none">+</span>
               New Schedule Item
             </Button>
@@ -1301,6 +1432,19 @@ export function MedBaseDashboard() {
           </div>
         </div>
       </header>
+
+      {isScheduleModalOpen ? (
+        <ScheduleItemModal
+          close={() => {
+            setIsScheduleModalOpen(false);
+            setScheduleError("");
+          }}
+          createScheduleItem={createScheduleItem}
+          scheduleDraft={scheduleDraft}
+          scheduleError={scheduleError}
+          setScheduleDraft={setScheduleDraft}
+        />
+      ) : null}
 
       <div className="grid min-h-[calc(100dvh-81px)] lg:grid-cols-[280px_minmax(0,1fr)]">
         <aside className="border-r border-[#dfe6ee] bg-white px-5 py-8">
@@ -2249,6 +2393,18 @@ function SchedulingModule({
   setScheduleView: (view: "Daily" | "Weekly" | "Monthly") => void;
 }) {
   const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+  const today = new Date();
+  const todayEvents = scheduleEvents.filter((event) => {
+    const eventDate = getScheduleDate(event);
+    return eventDate
+      ? isSameCalendarDate(eventDate, today)
+      : event.day === formatScheduleDay(today.toISOString());
+  });
+  const monthDays = getMonthCalendarDays(today);
+  const monthTitle = new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    year: "numeric",
+  }).format(today);
 
   return (
     <Panel
@@ -2267,44 +2423,143 @@ function SchedulingModule({
         ))}
       </div>
 
-      <div className="mt-5 grid gap-4 xl:grid-cols-5">
-        {days.map((day) => (
-          <div
-            key={day}
-            className="min-h-48 rounded-lg border border-border bg-background p-3"
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={(event) => {
-              const eventId = event.dataTransfer.getData("text/plain");
-              moveScheduleEvent(eventId, day);
-            }}
-          >
-            <h3 className="font-semibold">{day}</h3>
-            <div className="mt-3 grid gap-3">
-              {scheduleEvents.filter((event) => event.day === day).length === 0 ? (
-                <EmptyState message="No schedule items." />
-              ) : (
-                scheduleEvents
-                  .filter((event) => event.day === day)
-                  .map((event) => (
-                  <article
-                    key={event.id}
-                    className={`cursor-grab rounded-lg border p-3 text-sm ${eventStyles[event.type]}`}
-                    draggable
-                    onDragStart={(dragEvent) =>
-                      dragEvent.dataTransfer.setData("text/plain", event.id)
-                    }
-                  >
-                    <p className="font-semibold">{event.title}</p>
-                    <p>{event.time}</p>
-                    <p>{event.owner}</p>
-                    <p className="mt-1 text-xs">{event.type}</p>
-                  </article>
-                  ))
-              )}
+      {scheduleView === "Daily" ? (
+        <div className="mt-5 rounded-lg border border-border bg-background p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+            <div>
+              <h3 className="text-lg font-semibold">Today</h3>
+              <p className="text-sm text-muted-foreground">
+                {new Intl.DateTimeFormat("en-US", {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                }).format(today)}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs font-semibold">
+              {Object.keys(eventStyles).map((type) => (
+                <span
+                  key={type}
+                  className={`rounded-full px-3 py-1 ${eventStyles[type as ScheduleEvent["type"]]}`}
+                >
+                  {type}
+                </span>
+              ))}
             </div>
           </div>
-        ))}
-      </div>
+          <div className="mt-4 grid gap-3">
+            {todayEvents.length === 0 ? (
+              <EmptyState message="No schedule items for today." />
+            ) : (
+              todayEvents.map((event) => (
+                <ScheduleEventCard key={event.id} event={event} draggable={false} />
+              ))
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      {scheduleView === "Weekly" ? (
+        <div className="mt-5 grid gap-4 xl:grid-cols-5">
+          {days.map((day) => {
+            const dayEvents = scheduleEvents.filter((event) => event.day === day);
+
+            return (
+              <div
+                key={day}
+                className="min-h-48 rounded-lg border border-border bg-background p-3"
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => {
+                  const eventId = event.dataTransfer.getData("text/plain");
+                  moveScheduleEvent(eventId, day);
+                }}
+              >
+                <h3 className="font-semibold">{day}</h3>
+                <div className="mt-3 grid gap-3">
+                  {dayEvents.length === 0 ? (
+                    <EmptyState message="No schedule items." />
+                  ) : (
+                    dayEvents.map((event) => (
+                      <ScheduleEventCard key={event.id} event={event} draggable />
+                    ))
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {scheduleView === "Monthly" ? (
+        <div className="mt-5 rounded-lg border border-border bg-background p-4">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-lg font-semibold">{monthTitle}</h3>
+            <div className="flex flex-wrap gap-2 text-xs font-semibold">
+              {Object.keys(eventStyles).map((type) => (
+                <span
+                  key={type}
+                  className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-3 py-1"
+                >
+                  <span
+                    className={`size-2 rounded-full ${eventDotStyles[type as ScheduleEvent["type"]]}`}
+                  />
+                  {type}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-7 border-l border-t border-border text-xs font-semibold text-muted-foreground">
+            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+              <div key={day} className="border-b border-r border-border bg-white p-2">
+                {day}
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 border-l border-border">
+            {monthDays.map((date) => {
+              const dateEvents = scheduleEvents.filter((event) => {
+                const eventDate = getScheduleDate(event);
+                return eventDate ? isSameCalendarDate(eventDate, date) : false;
+              });
+              const isCurrentMonth = date.getMonth() === today.getMonth();
+
+              return (
+                <div
+                  key={date.toISOString()}
+                  className={`min-h-28 border-b border-r border-border p-2 ${
+                    isCurrentMonth ? "bg-white" : "bg-slate-50 text-muted-foreground"
+                  }`}
+                >
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="font-semibold">{date.getDate()}</span>
+                    {isSameCalendarDate(date, today) ? (
+                      <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-white">
+                        Today
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="grid gap-1">
+                    {dateEvents.slice(0, 3).map((event) => (
+                      <div
+                        key={event.id}
+                        className={`truncate rounded-md border px-2 py-1 ${eventStyles[event.type]}`}
+                        title={`${event.time} ${event.title}`}
+                      >
+                        {event.time} {event.title}
+                      </div>
+                    ))}
+                    {dateEvents.length > 3 ? (
+                      <p className="text-[11px] text-muted-foreground">
+                        +{dateEvents.length - 3} more
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
 
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
         <InfoBlock
@@ -2321,6 +2576,177 @@ function SchedulingModule({
         />
       </div>
     </Panel>
+  );
+}
+
+function ScheduleEventCard({
+  draggable,
+  event,
+}: {
+  draggable: boolean;
+  event: ScheduleEvent;
+}) {
+  return (
+    <article
+      className={`rounded-lg border p-3 text-sm ${draggable ? "cursor-grab" : ""} ${
+        eventStyles[event.type]
+      }`}
+      draggable={draggable}
+      onDragStart={(dragEvent) => {
+        if (draggable) {
+          dragEvent.dataTransfer.setData("text/plain", event.id);
+        }
+      }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold">{event.title}</p>
+          <p>{event.time}</p>
+          <p>{event.owner}</p>
+          {event.details ? (
+            <p className="mt-1 text-xs opacity-80">{event.details}</p>
+          ) : null}
+        </div>
+        <span className="rounded-full bg-white/70 px-2 py-1 text-[11px] font-semibold">
+          {event.type}
+        </span>
+      </div>
+      {event.startsAt ? (
+        <p className="mt-2 text-xs opacity-80">{formatScheduleDate(event.startsAt)}</p>
+      ) : null}
+    </article>
+  );
+}
+
+function ScheduleItemModal({
+  close,
+  createScheduleItem,
+  scheduleDraft,
+  scheduleError,
+  setScheduleDraft,
+}: {
+  close: () => void;
+  createScheduleItem: () => void | Promise<void>;
+  scheduleDraft: {
+    title: string;
+    owner: string;
+    startsAt: string;
+    type: ScheduleEvent["type"];
+    details: string;
+  };
+  scheduleError: string;
+  setScheduleDraft: (draft: {
+    title: string;
+    owner: string;
+    startsAt: string;
+    type: ScheduleEvent["type"];
+    details: string;
+  }) => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 px-4 py-6">
+      <section className="w-full max-w-lg rounded-lg border border-border bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-border p-5">
+          <div>
+            <h2 className="text-xl font-semibold">New Schedule Item</h2>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+              Add an appointment, SNF visit, staff shift, or administrative block.
+            </p>
+          </div>
+          <button
+            aria-label="Close schedule form"
+            className="grid size-9 place-items-center rounded-md border border-border text-lg text-muted-foreground transition hover:bg-muted"
+            type="button"
+            onClick={close}
+          >
+            x
+          </button>
+        </div>
+
+        <form
+          className="grid gap-4 p-5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void createScheduleItem();
+          }}
+        >
+          <Field label="Appointment type">
+            <select
+              className={inputClassName}
+              value={scheduleDraft.type}
+              onChange={(event) =>
+                setScheduleDraft({
+                  ...scheduleDraft,
+                  type: event.target.value as ScheduleEvent["type"],
+                })
+              }
+            >
+              <option value="Clinic">Clinic appointment</option>
+              <option value="SNF">SNF visit</option>
+              <option value="Staff Shift">Staff shift</option>
+              <option value="Admin">Administrative block</option>
+            </select>
+          </Field>
+
+          <Field label="Appointment title">
+            <input
+              className={inputClassName}
+              placeholder="Follow-up appointment"
+              value={scheduleDraft.title}
+              onChange={(event) =>
+                setScheduleDraft({ ...scheduleDraft, title: event.target.value })
+              }
+            />
+          </Field>
+
+          <Field label="Staff or provider">
+            <input
+              className={inputClassName}
+              placeholder="Assigned staff member"
+              value={scheduleDraft.owner}
+              onChange={(event) =>
+                setScheduleDraft({ ...scheduleDraft, owner: event.target.value })
+              }
+            />
+          </Field>
+
+          <Field label="Appointment time">
+            <input
+              className={inputClassName}
+              type="datetime-local"
+              value={scheduleDraft.startsAt}
+              onChange={(event) =>
+                setScheduleDraft({ ...scheduleDraft, startsAt: event.target.value })
+              }
+            />
+          </Field>
+
+          <Field label="Appointment details">
+            <textarea
+              className="min-h-28 rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              placeholder="Operational notes, location, or visit preparation details"
+              value={scheduleDraft.details}
+              onChange={(event) =>
+                setScheduleDraft({ ...scheduleDraft, details: event.target.value })
+              }
+            />
+          </Field>
+
+          {scheduleError ? (
+            <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              {scheduleError}
+            </p>
+          ) : null}
+
+          <div className="flex flex-wrap justify-end gap-3 border-t border-border pt-4">
+            <Button variant="secondary" onClick={close}>
+              Cancel
+            </Button>
+            <Button type="submit">Add schedule item</Button>
+          </div>
+        </form>
+      </section>
+    </div>
   );
 }
 
