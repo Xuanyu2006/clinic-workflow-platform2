@@ -62,7 +62,8 @@ type ScheduleEvent = {
   startsAt?: string;
   day: string;
   time: string;
-  type: "Clinic" | "SNF" | "Staff Shift" | "Admin";
+  type: "Clinic" | "Staff Shift" | "Admin";
+  appointmentType?: string;
   details?: string;
 };
 
@@ -105,6 +106,7 @@ type NotificationPreferences = {
 type UserPreferenceSettings = {
   organizationName: string;
   defaultDepartment: string;
+  appointmentTypes: string[];
   timezone: string;
   dateFormat: string;
   theme: string;
@@ -236,12 +238,13 @@ const departmentOptions = [
   "Clinical Operations",
   "Scheduling",
   "Therapy",
-  "SNF Coordination",
   "Care Coordination",
   "Referrals",
   "Records",
   "Administration",
 ];
+
+const defaultAppointmentTypes = ["General appointment"];
 
 const staffDirectory: { name: string; role: Role; department: string }[] = [];
 
@@ -260,6 +263,7 @@ const initialCommunicationBoards: CommunicationBoards = {
 const initialUserSettings: UserPreferenceSettings = {
   organizationName: "Med Base",
   defaultDepartment: "Front Desk",
+  appointmentTypes: defaultAppointmentTypes,
   timezone: "America/Los_Angeles",
   dateFormat: "MM/DD/YYYY",
   theme: "Healthcare light",
@@ -277,14 +281,12 @@ const initialUserSettings: UserPreferenceSettings = {
 
 const eventStyles = {
   Clinic: "border-teal-200 bg-teal-50 text-teal-800",
-  SNF: "border-violet-200 bg-violet-50 text-violet-800",
   "Staff Shift": "border-sky-200 bg-sky-50 text-sky-800",
   Admin: "border-amber-200 bg-amber-50 text-amber-800",
 };
 
 const eventDotStyles: Record<ScheduleEvent["type"], string> = {
   Clinic: "bg-teal-500",
-  SNF: "bg-violet-500",
   "Staff Shift": "bg-sky-500",
   Admin: "bg-amber-500",
 };
@@ -350,6 +352,10 @@ function getMonthCalendarDays(monthDate: Date) {
     date.setDate(calendarStart.getDate() + index);
     return date;
   });
+}
+
+function normalizeScheduleEventType(value: string): ScheduleEvent["type"] {
+  return value === "Staff Shift" || value === "Admin" ? value : "Clinic";
 }
 
 function formatDueDate(value: string | null) {
@@ -428,7 +434,7 @@ export function MedBaseDashboard() {
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [scheduleError, setScheduleError] = useState("");
   const [scheduleDraft, setScheduleDraft] = useState({
-    title: "",
+    appointmentType: defaultAppointmentTypes[0],
     owner: "",
     startsAt: "",
     type: "Clinic" as ScheduleEvent["type"],
@@ -449,6 +455,7 @@ export function MedBaseDashboard() {
   const [communicationError, setCommunicationError] = useState("");
   const [departments, setDepartments] = useState(departmentOptions);
   const [newDepartment, setNewDepartment] = useState("");
+  const [newAppointmentType, setNewAppointmentType] = useState("");
   const [userSettings, setUserSettings] = useState(initialUserSettings);
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
   const [staffMembers, setStaffMembers] = useState<
@@ -627,7 +634,8 @@ export function MedBaseDashboard() {
           startsAt: event.starts_at,
           day: formatScheduleDay(event.starts_at),
           time: formatScheduleTime(event.starts_at),
-          type: event.event_type,
+          type: normalizeScheduleEventType(event.event_type),
+          appointmentType: event.event_type === "Clinic" ? event.title : undefined,
           details: event.location ?? "",
         })),
       );
@@ -682,10 +690,22 @@ export function MedBaseDashboard() {
       typeof settingsResult.data.settings === "object" &&
       !Array.isArray(settingsResult.data.settings)
     ) {
-      setUserSettings({
+      const savedSettings =
+        settingsResult.data.settings as Partial<UserPreferenceSettings>;
+      const nextAppointmentTypes = savedSettings.appointmentTypes?.length
+        ? savedSettings.appointmentTypes
+        : defaultAppointmentTypes;
+      const nextSettings: UserPreferenceSettings = {
         ...initialUserSettings,
-        ...(settingsResult.data.settings as Partial<UserPreferenceSettings>),
-      });
+        ...savedSettings,
+        appointmentTypes: nextAppointmentTypes,
+      };
+      setUserSettings(nextSettings);
+      setScheduleDraft((current) => ({
+        ...current,
+        appointmentType:
+          nextSettings.appointmentTypes[0] ?? defaultAppointmentTypes[0],
+      }));
     }
 
     if (profilesResult.data) {
@@ -876,9 +896,10 @@ export function MedBaseDashboard() {
 
   async function createScheduleItem() {
     if (
-      !scheduleDraft.title.trim() ||
+      !scheduleDraft.appointmentType.trim() ||
       !scheduleDraft.owner.trim() ||
-      !scheduleDraft.startsAt
+      !scheduleDraft.startsAt ||
+      !scheduleDraft.details.trim()
     ) {
       setScheduleError("Enter the appointment type, time, and details.");
       return;
@@ -897,7 +918,10 @@ export function MedBaseDashboard() {
         .from("schedule_events")
         .insert({
           organization_id: currentOrganizationId,
-          title: scheduleDraft.title.trim(),
+          title:
+            scheduleDraft.type === "Clinic"
+              ? scheduleDraft.appointmentType.trim()
+              : scheduleDraft.type,
           owner: scheduleDraft.owner.trim(),
           starts_at: startsAt,
           event_type: scheduleDraft.type,
@@ -924,17 +948,24 @@ export function MedBaseDashboard() {
       ...current,
       {
         id: persistedScheduleId,
-        title: scheduleDraft.title.trim(),
+        title:
+          scheduleDraft.type === "Clinic"
+            ? scheduleDraft.appointmentType.trim()
+            : scheduleDraft.type,
         owner: scheduleDraft.owner.trim(),
         startsAt,
         day: formatScheduleDay(startsAt),
         time: formatScheduleTime(startsAt),
         type: scheduleDraft.type,
+        appointmentType:
+          scheduleDraft.type === "Clinic"
+            ? scheduleDraft.appointmentType.trim()
+            : undefined,
         details: scheduleDraft.details.trim(),
       },
     ]);
     setScheduleDraft({
-      title: "",
+      appointmentType: userSettings.appointmentTypes[0] ?? defaultAppointmentTypes[0],
       owner: "",
       startsAt: "",
       type: "Clinic",
@@ -1261,6 +1292,47 @@ export function MedBaseDashboard() {
     }
   }
 
+  function addAppointmentType() {
+    const value = newAppointmentType.trim();
+
+    if (!value || userSettings.appointmentTypes.includes(value)) {
+      return;
+    }
+
+    updateUserSettings({
+      ...userSettings,
+      appointmentTypes: [...userSettings.appointmentTypes, value],
+    });
+    setScheduleDraft((current) => ({
+      ...current,
+      appointmentType: current.appointmentType || value,
+    }));
+    setNewAppointmentType("");
+    void writeAuditLog("appointment_type.created", "user_settings");
+  }
+
+  function removeAppointmentType(appointmentType: string) {
+    const nextAppointmentTypes = userSettings.appointmentTypes.filter(
+      (item) => item !== appointmentType,
+    );
+    const fallbackType = nextAppointmentTypes[0] ?? defaultAppointmentTypes[0];
+
+    updateUserSettings({
+      ...userSettings,
+      appointmentTypes: nextAppointmentTypes.length
+        ? nextAppointmentTypes
+        : defaultAppointmentTypes,
+    });
+    setScheduleDraft((current) => ({
+      ...current,
+      appointmentType:
+        current.appointmentType === appointmentType
+          ? fallbackType
+          : current.appointmentType,
+    }));
+    void writeAuditLog("appointment_type.deleted", "user_settings");
+  }
+
   async function addPendingInvite() {
     const email = inviteDraft.email.trim();
 
@@ -1435,6 +1507,7 @@ export function MedBaseDashboard() {
 
       {isScheduleModalOpen ? (
         <ScheduleItemModal
+          appointmentTypes={userSettings.appointmentTypes}
           close={() => {
             setIsScheduleModalOpen(false);
             setScheduleError("");
@@ -1544,16 +1617,20 @@ export function MedBaseDashboard() {
           )}
           {activeModule === "Settings" && (
             <SettingsModule
+              addAppointmentType={addAppointmentType}
               addDepartment={addDepartment}
               addPendingInvite={addPendingInvite}
               departments={departments}
               inviteDraft={inviteDraft}
+              newAppointmentType={newAppointmentType}
               newDepartment={newDepartment}
               pendingInvites={pendingInvites}
+              removeAppointmentType={removeAppointmentType}
               removeDepartment={removeDepartment}
               setInviteDraft={setInviteDraft}
+              setNewAppointmentType={setNewAppointmentType}
               setNewDepartment={setNewDepartment}
-              setUserSettings={setUserSettings}
+              setUserSettings={updateUserSettings}
               updateNotificationPreference={updateNotificationPreference}
               userSettings={userSettings}
             />
@@ -1574,7 +1651,7 @@ function LandingPage({
   const featureCards = [
     {
       title: "Scheduling",
-      text: "Coordinate clinic appointments, staff shifts, and SNF schedule blocks.",
+      text: "Coordinate clinic appointments, staff shifts, and administrative schedule blocks.",
     },
     {
       title: "Messages",
@@ -2191,7 +2268,7 @@ function DashboardModule({
   teamChats: TeamChat[];
 }) {
   const appointmentEvents = scheduleEvents.filter(
-    (event) => event.type === "Clinic" || event.type === "SNF",
+    (event) => event.type === "Clinic",
   );
   const shiftEvents = scheduleEvents.filter((event) => event.type === "Staff Shift");
   const pendingTasks = tasks.filter(
@@ -2409,7 +2486,7 @@ function SchedulingModule({
   return (
     <Panel
       title="Scheduling"
-      description="Outpatient clinic and SNF scheduling with draggable schedule events."
+      description="Clinic scheduling with daily, weekly, and monthly calendar views."
     >
       <div className="flex flex-wrap gap-2">
         {(["Daily", "Weekly", "Monthly"] as const).map((view) => (
@@ -2619,16 +2696,18 @@ function ScheduleEventCard({
 }
 
 function ScheduleItemModal({
+  appointmentTypes,
   close,
   createScheduleItem,
   scheduleDraft,
   scheduleError,
   setScheduleDraft,
 }: {
+  appointmentTypes: string[];
   close: () => void;
   createScheduleItem: () => void | Promise<void>;
   scheduleDraft: {
-    title: string;
+    appointmentType: string;
     owner: string;
     startsAt: string;
     type: ScheduleEvent["type"];
@@ -2636,7 +2715,7 @@ function ScheduleItemModal({
   };
   scheduleError: string;
   setScheduleDraft: (draft: {
-    title: string;
+    appointmentType: string;
     owner: string;
     startsAt: string;
     type: ScheduleEvent["type"];
@@ -2650,7 +2729,7 @@ function ScheduleItemModal({
           <div>
             <h2 className="text-xl font-semibold">New Schedule Item</h2>
             <p className="mt-1 text-sm leading-6 text-muted-foreground">
-              Add an appointment, SNF visit, staff shift, or administrative block.
+              Add an appointment, staff shift, or administrative block.
             </p>
           </div>
           <button
@@ -2670,7 +2749,7 @@ function ScheduleItemModal({
             void createScheduleItem();
           }}
         >
-          <Field label="Appointment type">
+          <Field label="Schedule category">
             <select
               className={inputClassName}
               value={scheduleDraft.type}
@@ -2682,22 +2761,31 @@ function ScheduleItemModal({
               }
             >
               <option value="Clinic">Clinic appointment</option>
-              <option value="SNF">SNF visit</option>
               <option value="Staff Shift">Staff shift</option>
               <option value="Admin">Administrative block</option>
             </select>
           </Field>
 
-          <Field label="Appointment title">
-            <input
-              className={inputClassName}
-              placeholder="Follow-up appointment"
-              value={scheduleDraft.title}
-              onChange={(event) =>
-                setScheduleDraft({ ...scheduleDraft, title: event.target.value })
-              }
-            />
-          </Field>
+          {scheduleDraft.type === "Clinic" ? (
+            <Field label="Appointment type">
+              <select
+                className={inputClassName}
+                value={scheduleDraft.appointmentType}
+                onChange={(event) =>
+                  setScheduleDraft({
+                    ...scheduleDraft,
+                    appointmentType: event.target.value,
+                  })
+                }
+              >
+                {appointmentTypes.map((appointmentType) => (
+                  <option key={appointmentType} value={appointmentType}>
+                    {appointmentType}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          ) : null}
 
           <Field label="Staff or provider">
             <input
@@ -3207,7 +3295,7 @@ function AnalyticsModule({
       label: "Appointment volume",
       value: String(
         scheduleEvents.filter(
-          (event) => event.type === "Clinic" || event.type === "SNF",
+          (event) => event.type === "Clinic",
         ).length,
       ),
       detail: "Scheduled appointment-related events.",
@@ -3258,27 +3346,35 @@ function AnalyticsModule({
 }
 
 function SettingsModule({
+  addAppointmentType,
   addDepartment,
   addPendingInvite,
   departments,
   inviteDraft,
+  newAppointmentType,
   newDepartment,
   pendingInvites,
+  removeAppointmentType,
   removeDepartment,
   setInviteDraft,
+  setNewAppointmentType,
   setNewDepartment,
   setUserSettings,
   updateNotificationPreference,
   userSettings,
 }: {
+  addAppointmentType: () => void;
   addDepartment: () => void;
   addPendingInvite: () => void;
   departments: string[];
   inviteDraft: { email: string; role: Role; department: string };
+  newAppointmentType: string;
   newDepartment: string;
   pendingInvites: PendingInvite[];
+  removeAppointmentType: (appointmentType: string) => void;
   removeDepartment: (department: string) => void;
   setInviteDraft: (value: { email: string; role: Role; department: string }) => void;
+  setNewAppointmentType: (value: string) => void;
   setNewDepartment: (value: string) => void;
   setUserSettings: (value: UserPreferenceSettings) => void;
   updateNotificationPreference: (
@@ -3389,6 +3485,34 @@ function SettingsModule({
                 onClick={() => removeDepartment(department)}
               >
                 {department} x
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-border bg-background p-4">
+          <h3 className="font-semibold">Appointment Types</h3>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            These options appear in the New Schedule Item appointment dropdown.
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <input
+              className={inputClassName}
+              placeholder="Follow-up visit"
+              value={newAppointmentType}
+              onChange={(event) => setNewAppointmentType(event.target.value)}
+            />
+            <Button onClick={addAppointmentType}>Add</Button>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {userSettings.appointmentTypes.map((appointmentType) => (
+              <button
+                key={appointmentType}
+                className="rounded-full border border-border bg-white px-3 py-1.5 text-sm text-muted-foreground transition hover:border-primary hover:text-primary"
+                type="button"
+                onClick={() => removeAppointmentType(appointmentType)}
+              >
+                {appointmentType} x
               </button>
             ))}
           </div>

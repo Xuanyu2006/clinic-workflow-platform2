@@ -77,3 +77,18 @@ test("schedule views render daily weekly and monthly calendars", () => {
   assert.match(dashboard, /eventDotStyles/);
   assert.match(dashboard, /function ScheduleEventCard/);
 });
+
+test("appointment types are configurable and scheduling no longer offers SNF visits", () => {
+  const scheduleModalStart = dashboard.indexOf("function ScheduleItemModal");
+  const scheduleModal = dashboard.slice(
+    scheduleModalStart,
+    dashboard.indexOf("function TasksModule", scheduleModalStart),
+  );
+
+  assert.match(dashboard, /appointmentTypes: string\[\]/);
+  assert.match(dashboard, /function addAppointmentType/);
+  assert.match(dashboard, /function removeAppointmentType/);
+  assert.match(dashboard, /Appointment Types/);
+  assert.match(scheduleModal, /appointmentTypes\.map/);
+  assert.doesNotMatch(scheduleModal, /SNF visit/);
+});
