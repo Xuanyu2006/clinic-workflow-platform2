@@ -92,3 +92,12 @@ test("appointment types are configurable and scheduling no longer offers SNF vis
   assert.match(scheduleModal, /appointmentTypes\.map/);
   assert.doesNotMatch(scheduleModal, /SNF visit/);
 });
+
+test("scheduled items can be opened moved and deleted", () => {
+  assert.match(dashboard, /function ScheduleEventManageModal/);
+  assert.match(dashboard, /openScheduleEvent/);
+  assert.match(dashboard, /function updateScheduleEventDate/);
+  assert.match(dashboard, /function deleteScheduleEvent/);
+  assert.match(dashboard, /Move schedule item/);
+  assert.match(dashboard, /Delete schedule item/);
+});

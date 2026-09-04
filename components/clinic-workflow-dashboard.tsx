@@ -330,6 +330,17 @@ function formatScheduleDate(value: string) {
   }).format(new Date(value));
 }
 
+function toDateTimeLocalInput(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const timezoneOffset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 16);
+}
+
 function getScheduleDate(event: ScheduleEvent) {
   return event.startsAt ? new Date(event.startsAt) : null;
 }
@@ -432,6 +443,8 @@ export function MedBaseDashboard() {
   );
   const [scheduleEvents, setScheduleEvents] = useState(initialScheduleEvents);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [selectedScheduleEventId, setSelectedScheduleEventId] = useState("");
+  const [scheduleEditStartsAt, setScheduleEditStartsAt] = useState("");
   const [scheduleError, setScheduleError] = useState("");
   const [scheduleDraft, setScheduleDraft] = useState({
     appointmentType: defaultAppointmentTypes[0],
@@ -474,6 +487,9 @@ export function MedBaseDashboard() {
   const [summarySuggestion, setSummarySuggestion] =
     useState<SummarySuggestion | null>(null);
   const allowedModules = rolePermissions[role];
+  const selectedScheduleEvent = scheduleEvents.find(
+    (event) => event.id === selectedScheduleEventId,
+  );
 
   useEffect(() => {
     const client = supabase;
@@ -892,6 +908,93 @@ export function MedBaseDashboard() {
     }
 
     await writeAuditLog("schedule_event.moved", "schedule_events", eventId);
+  }
+
+  function openScheduleEvent(eventId: string) {
+    const eventToEdit = scheduleEvents.find((event) => event.id === eventId);
+
+    if (!eventToEdit) {
+      return;
+    }
+
+    const startsAt =
+      eventToEdit.startsAt ?? dateForWeekday(eventToEdit.day, eventToEdit.time);
+    setSelectedScheduleEventId(eventId);
+    setScheduleEditStartsAt(toDateTimeLocalInput(startsAt));
+    setScheduleError("");
+  }
+
+  async function updateScheduleEventDate() {
+    if (!selectedScheduleEvent || !scheduleEditStartsAt) {
+      setScheduleError("Choose a new appointment date and time.");
+      return;
+    }
+
+    const startsAt = new Date(scheduleEditStartsAt).toISOString();
+
+    setScheduleEvents((current) =>
+      current.map((event) =>
+        event.id === selectedScheduleEvent.id
+          ? {
+              ...event,
+              startsAt,
+              day: formatScheduleDay(startsAt),
+              time: formatScheduleTime(startsAt),
+            }
+          : event,
+      ),
+    );
+
+    if (supabase) {
+      const { error } = await supabase
+        .from("schedule_events")
+        .update({ starts_at: startsAt })
+        .eq("id", selectedScheduleEvent.id);
+
+      if (error) {
+        setScheduleError(error.message);
+        return;
+      }
+    }
+
+    await writeAuditLog(
+      "schedule_event.rescheduled",
+      "schedule_events",
+      selectedScheduleEvent.id,
+    );
+    setSelectedScheduleEventId("");
+    setScheduleEditStartsAt("");
+    setScheduleError("");
+  }
+
+  async function deleteScheduleEvent() {
+    if (!selectedScheduleEvent) {
+      return;
+    }
+
+    const deletedEventId = selectedScheduleEvent.id;
+
+    setScheduleEvents((current) =>
+      current.filter((event) => event.id !== deletedEventId),
+    );
+    setSelectedScheduleEventId("");
+    setScheduleEditStartsAt("");
+    setScheduleError("");
+
+    if (supabase) {
+      const { error } = await supabase
+        .from("schedule_events")
+        .delete()
+        .eq("id", deletedEventId);
+
+      if (error) {
+        setScheduleError(error.message);
+        setScheduleEvents((current) => [...current, selectedScheduleEvent]);
+        return;
+      }
+    }
+
+    await writeAuditLog("schedule_event.deleted", "schedule_events", deletedEventId);
   }
 
   async function createScheduleItem() {
@@ -1519,6 +1622,22 @@ export function MedBaseDashboard() {
         />
       ) : null}
 
+      {selectedScheduleEvent ? (
+        <ScheduleEventManageModal
+          close={() => {
+            setSelectedScheduleEventId("");
+            setScheduleEditStartsAt("");
+            setScheduleError("");
+          }}
+          deleteScheduleEvent={deleteScheduleEvent}
+          event={selectedScheduleEvent}
+          scheduleEditStartsAt={scheduleEditStartsAt}
+          scheduleError={scheduleError}
+          setScheduleEditStartsAt={setScheduleEditStartsAt}
+          updateScheduleEventDate={updateScheduleEventDate}
+        />
+      ) : null}
+
       <div className="grid min-h-[calc(100dvh-81px)] lg:grid-cols-[280px_minmax(0,1fr)]">
         <aside className="border-r border-[#dfe6ee] bg-white px-5 py-8">
           <nav className="grid gap-4">
@@ -1562,6 +1681,7 @@ export function MedBaseDashboard() {
           {activeModule === "Scheduling" && (
             <SchedulingModule
               moveScheduleEvent={moveScheduleEvent}
+              openScheduleEvent={openScheduleEvent}
               scheduleEvents={scheduleEvents}
               scheduleView={scheduleView}
               setScheduleView={setScheduleView}
@@ -2460,11 +2580,13 @@ function DashboardModule({
 
 function SchedulingModule({
   moveScheduleEvent,
+  openScheduleEvent,
   scheduleEvents,
   scheduleView,
   setScheduleView,
 }: {
   moveScheduleEvent: (eventId: string, day: string) => void;
+  openScheduleEvent: (eventId: string) => void;
   scheduleEvents: ScheduleEvent[];
   scheduleView: "Daily" | "Weekly" | "Monthly";
   setScheduleView: (view: "Daily" | "Weekly" | "Monthly") => void;
@@ -2529,7 +2651,12 @@ function SchedulingModule({
               <EmptyState message="No schedule items for today." />
             ) : (
               todayEvents.map((event) => (
-                <ScheduleEventCard key={event.id} event={event} draggable={false} />
+                <ScheduleEventCard
+                  key={event.id}
+                  event={event}
+                  draggable={false}
+                  openScheduleEvent={openScheduleEvent}
+                />
               ))
             )}
           </div>
@@ -2557,7 +2684,12 @@ function SchedulingModule({
                     <EmptyState message="No schedule items." />
                   ) : (
                     dayEvents.map((event) => (
-                      <ScheduleEventCard key={event.id} event={event} draggable />
+                      <ScheduleEventCard
+                        key={event.id}
+                        event={event}
+                        draggable
+                        openScheduleEvent={openScheduleEvent}
+                      />
                     ))
                   )}
                 </div>
@@ -2619,7 +2751,16 @@ function SchedulingModule({
                     {dateEvents.slice(0, 3).map((event) => (
                       <div
                         key={event.id}
-                        className={`truncate rounded-md border px-2 py-1 ${eventStyles[event.type]}`}
+                        className={`truncate rounded-md border px-2 py-1 text-left ${eventStyles[event.type]}`}
+                        onClick={() => openScheduleEvent(event.id)}
+                        onKeyDown={(keyEvent) => {
+                          if (keyEvent.key === "Enter" || keyEvent.key === " ") {
+                            keyEvent.preventDefault();
+                            openScheduleEvent(event.id);
+                          }
+                        }}
+                        role="button"
+                        tabIndex={0}
                         title={`${event.time} ${event.title}`}
                       >
                         {event.time} {event.title}
@@ -2659,21 +2800,34 @@ function SchedulingModule({
 function ScheduleEventCard({
   draggable,
   event,
+  openScheduleEvent,
 }: {
   draggable: boolean;
   event: ScheduleEvent;
+  openScheduleEvent: (eventId: string) => void;
 }) {
   return (
     <article
-      className={`rounded-lg border p-3 text-sm ${draggable ? "cursor-grab" : ""} ${
+      className={`rounded-lg border p-3 text-sm transition hover:shadow-md ${
+        draggable ? "cursor-grab" : "cursor-pointer"
+      } ${
         eventStyles[event.type]
       }`}
       draggable={draggable}
+      onClick={() => openScheduleEvent(event.id)}
       onDragStart={(dragEvent) => {
         if (draggable) {
           dragEvent.dataTransfer.setData("text/plain", event.id);
         }
       }}
+      onKeyDown={(keyEvent) => {
+        if (keyEvent.key === "Enter" || keyEvent.key === " ") {
+          keyEvent.preventDefault();
+          openScheduleEvent(event.id);
+        }
+      }}
+      role="button"
+      tabIndex={0}
     >
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -2692,6 +2846,94 @@ function ScheduleEventCard({
         <p className="mt-2 text-xs opacity-80">{formatScheduleDate(event.startsAt)}</p>
       ) : null}
     </article>
+  );
+}
+
+function ScheduleEventManageModal({
+  close,
+  deleteScheduleEvent,
+  event,
+  scheduleEditStartsAt,
+  scheduleError,
+  setScheduleEditStartsAt,
+  updateScheduleEventDate,
+}: {
+  close: () => void;
+  deleteScheduleEvent: () => void | Promise<void>;
+  event: ScheduleEvent;
+  scheduleEditStartsAt: string;
+  scheduleError: string;
+  setScheduleEditStartsAt: (value: string) => void;
+  updateScheduleEventDate: () => void | Promise<void>;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 px-4 py-6">
+      <section className="w-full max-w-lg rounded-lg border border-border bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-border p-5">
+          <div>
+            <h2 className="text-xl font-semibold">Manage Schedule Item</h2>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+              Move this item to another date and time, or remove it from the schedule.
+            </p>
+          </div>
+          <button
+            aria-label="Close schedule item"
+            className="grid size-9 place-items-center rounded-md border border-border text-lg text-muted-foreground transition hover:bg-muted"
+            type="button"
+            onClick={close}
+          >
+            x
+          </button>
+        </div>
+
+        <div className="grid gap-4 p-5">
+          <div className={`rounded-lg border p-4 text-sm ${eventStyles[event.type]}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-base font-semibold">{event.title}</p>
+                <p className="mt-1">{event.owner}</p>
+                <p>{event.day} at {event.time}</p>
+                {event.details ? (
+                  <p className="mt-2 text-xs opacity-80">{event.details}</p>
+                ) : null}
+              </div>
+              <span className="rounded-full bg-white/70 px-2 py-1 text-[11px] font-semibold">
+                {event.type}
+              </span>
+            </div>
+          </div>
+
+          <Field label="Move to date and time">
+            <input
+              className={inputClassName}
+              type="datetime-local"
+              value={scheduleEditStartsAt}
+              onChange={(inputEvent) =>
+                setScheduleEditStartsAt(inputEvent.target.value)
+              }
+            />
+          </Field>
+
+          {scheduleError ? (
+            <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              {scheduleError}
+            </p>
+          ) : null}
+
+          <div className="flex flex-wrap justify-between gap-3 border-t border-border pt-4">
+            <Button variant="danger" onClick={deleteScheduleEvent}>
+              Delete schedule item
+            </Button>
+            <div className="flex flex-wrap gap-3">
+              <Button variant="secondary" onClick={close}>
+                Cancel
+              </Button>
+              <Button onClick={updateScheduleEventDate}>Move schedule item</Button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
   );
 }
 
