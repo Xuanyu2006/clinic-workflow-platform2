@@ -1967,7 +1967,7 @@ function LandingPage({
                   ].map(([label, width], index) => (
                     <div
                       key={label}
-                      className="rounded-xl border border-white/10 bg-white/95 p-4 shadow-sm"
+                      className="rounded-xl border border-white/10 bg-white/95 p-4 text-slate-950 shadow-sm"
                       style={{
                         transform: `translateY(${Math.sin((scrollProgress + index * 80) / 160) * 8}px)`,
                       }}
@@ -1979,7 +1979,7 @@ function LandingPage({
                         />
                       </div>
                       <p className="font-semibold">{label}</p>
-                      <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                      <p className="mt-2 text-xs leading-5 text-slate-600">
                         Operational workflow preview
                       </p>
                     </div>
@@ -1988,18 +1988,18 @@ function LandingPage({
               </div>
 
               <div
-                className="absolute bottom-6 left-3 w-72 rounded-2xl border border-border bg-white p-5 shadow-2xl transition-transform duration-500"
+                className="absolute bottom-6 left-3 w-72 rounded-2xl border border-border bg-white p-5 text-slate-950 shadow-2xl transition-transform duration-500"
                 style={{
                   transform: `translateY(${Math.max(0, 90 - storyProgress * 180)}px)`,
                 }}
               >
-                <p className="text-sm font-semibold">Today</p>
+                <p className="text-sm font-semibold text-slate-950">Today</p>
                 <div className="mt-4 grid gap-3">
                   {["9:00 Intake forms", "11:30 Staff handoff", "2:15 Task review"].map(
                     (item) => (
                       <div
                         key={item}
-                        className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                        className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-slate-800"
                       >
                         {item}
                       </div>
