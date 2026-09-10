@@ -3,6 +3,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 const dashboard = readFileSync("components/clinic-workflow-dashboard.tsx", "utf8");
+const envSource = readFileSync("lib/env.ts", "utf8");
+const configCheckRoute = readFileSync("app/api/config-check/route.ts", "utf8");
 const hardeningSql = readFileSync("database/002_operational_hardening.sql", "utf8");
 const tenancySql = readFileSync("database/003_multi_tenant_organizations.sql", "utf8");
 
@@ -106,4 +108,13 @@ test("sidebar uses proper svg module icons", () => {
   assert.match(dashboard, /function ModuleIcon/);
   assert.match(dashboard, /<ModuleIcon module={module} \/>/);
   assert.doesNotMatch(dashboard, /moduleIconLabels/);
+});
+
+test("supabase public env accepts all expected Vercel key names", () => {
+  assert.match(envSource, /process\.env\.NEXT_PUBLIC_SUPABASE_URL/);
+  assert.match(envSource, /process\.env\.NEXT_PUBLIC_SUPABASE_ANON/);
+  assert.match(envSource, /process\.env\.NEXT_PUBLIC_SUPABASE_ANON_KEY/);
+  assert.match(envSource, /process\.env\.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY/);
+  assert.match(configCheckRoute, /supabaseConfigured/);
+  assert.match(configCheckRoute, /NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY/);
 });

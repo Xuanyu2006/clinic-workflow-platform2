@@ -2231,7 +2231,7 @@ function AuthScreen({
             ? "Supabase authentication is active."
             : `Supabase keys are not configured yet. Missing: ${env.missingSupabaseKeys.join(
                 ", ",
-              )}. This form will run in preview mode until keys are added.`}
+              )}. Add them in Vercel Production environment variables, then redeploy without build cache.`}
         </p>
 
         <div className="mt-5 grid grid-cols-2 rounded-md border border-border bg-muted p-1">
