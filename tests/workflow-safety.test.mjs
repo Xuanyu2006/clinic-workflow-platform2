@@ -118,3 +118,11 @@ test("supabase public env accepts all expected Vercel key names", () => {
   assert.match(configCheckRoute, /supabaseConfigured/);
   assert.match(configCheckRoute, /NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY/);
 });
+
+test("landing page includes parallax scroll treatment", () => {
+  assert.match(dashboard, /scrollProgress/);
+  assert.match(dashboard, /updateScrollProgress/);
+  assert.match(dashboard, /Operations dashboard/);
+  assert.match(dashboard, /Live workflow overview/);
+  assert.match(dashboard, /lg:sticky lg:top-32/);
+});

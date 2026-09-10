@@ -1756,6 +1756,7 @@ function LandingPage({
   openCreateAccount: () => void;
   openLogin: () => void;
 }) {
+  const [scrollProgress, setScrollProgress] = useState(0);
   const featureCards = [
     {
       title: "Scheduling",
@@ -1789,10 +1790,22 @@ function LandingPage({
     "Review before action",
     "Scoped workflows",
   ];
+  const parallaxShift = Math.min(scrollProgress * 0.12, 120);
+
+  useEffect(() => {
+    function updateScrollProgress() {
+      setScrollProgress(window.scrollY);
+    }
+
+    updateScrollProgress();
+    window.addEventListener("scroll", updateScrollProgress, { passive: true });
+
+    return () => window.removeEventListener("scroll", updateScrollProgress);
+  }, []);
 
   return (
-    <main className="min-h-dvh bg-white text-foreground">
-      <header className="sticky top-0 z-10 border-b border-border bg-white/95 backdrop-blur">
+    <main className="min-h-dvh overflow-hidden bg-white text-foreground">
+      <header className="sticky top-0 z-30 border-b border-border bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
           <button
             className="flex items-center gap-2 text-sm font-semibold"
@@ -1820,95 +1833,152 @@ function LandingPage({
 
       <section
         id="overview"
-        className="mx-auto grid max-w-7xl gap-10 px-5 py-16 lg:grid-cols-[0.9fr_1.1fr] lg:items-center"
+        className="relative min-h-[92dvh] px-5"
       >
-        <div>
-          <StatusPill className="bg-primary/10 text-primary ring-primary/20">
-            Healthcare operations
-          </StatusPill>
-          <h1 className="mt-5 max-w-xl text-4xl font-semibold leading-tight tracking-normal md:text-5xl">
-            Med Base coordinates healthcare operations without becoming an EHR
-          </h1>
-          <p className="mt-5 max-w-lg text-sm leading-7 text-muted-foreground">
-            A modular SaaS platform for scheduling, staff messaging, reminders,
-            forms, tasks, and operational visibility.
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Button onClick={openCreateAccount}>Create account</Button>
-            <Button variant="secondary" onClick={openLogin}>
-              Log in
-            </Button>
-          </div>
-          <div className="mt-8 grid gap-4 text-sm sm:grid-cols-3">
-            <div>
-              <p className="font-semibold text-primary">No EHR scope</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Workflow coordination only
-              </p>
+        <div className="absolute inset-0 bg-[#f5fbfd]" />
+        <div
+          className="absolute left-1/2 top-20 h-[420px] w-[78vw] -translate-x-1/2 rounded-[40px] border border-primary/10 bg-white/55 shadow-2xl shadow-primary/10"
+          style={{ transform: `translate(-50%, ${parallaxShift * 0.4}px)` }}
+        />
+        <div className="relative mx-auto grid min-h-[calc(92dvh-81px)] max-w-7xl gap-10 py-14 lg:grid-cols-[0.86fr_1.14fr] lg:items-center">
+          <div className="relative z-10">
+            <StatusPill className="bg-primary/10 text-primary ring-primary/20">
+              Healthcare operations
+            </StatusPill>
+            <h1 className="mt-5 max-w-xl text-4xl font-semibold leading-tight tracking-normal md:text-6xl">
+              Med Base coordinates the work around care
+            </h1>
+            <p className="mt-5 max-w-lg text-sm leading-7 text-muted-foreground md:text-base">
+              A modular SaaS platform for scheduling, staff messaging, reminders,
+              forms, tasks, and operational visibility.
+            </p>
+            <div className="mt-7 flex flex-wrap gap-3">
+              <Button onClick={openCreateAccount}>Create account</Button>
+              <Button variant="secondary" onClick={openLogin}>
+                Log in
+              </Button>
             </div>
-            <div>
-              <p className="font-semibold text-primary">Human review</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                AI drafts require approval
-              </p>
-            </div>
-            <div>
-              <p className="font-semibold text-primary">Modular</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Built to expand over time
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-2xl bg-slate-950 p-6 shadow-2xl">
-          <div className="grid gap-4 md:grid-cols-2">
-            {[
-              "Appointment list",
-              "Patient reminders",
-              "Team messages",
-              "Digital forms",
-              "Task approvals",
-              "Insurance checks",
-            ].map((label, index) => (
-              <div
-                key={label}
-                className="rounded-xl border border-white/10 bg-white/90 p-4 shadow-sm"
-              >
-                <div className="mb-4 h-2 rounded-full bg-primary/20">
-                  <div
-                    className="h-2 rounded-full bg-primary"
-                    style={{ width: `${52 + index * 6}%` }}
-                  />
+            <div className="mt-10 grid gap-4 text-sm sm:grid-cols-3">
+              {[
+                ["No EHR scope", "Workflow coordination only"],
+                ["Human review", "AI drafts require approval"],
+                ["Modular", "Built to expand over time"],
+              ].map(([title, text]) => (
+                <div key={title} className="border-l-2 border-primary pl-3">
+                  <p className="font-semibold text-primary">{title}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{text}</p>
                 </div>
-                <p className="font-semibold">{label}</p>
-                <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                  Operational workflow preview
-                </p>
+              ))}
+            </div>
+          </div>
+
+          <div
+            className="relative z-10 min-h-[520px]"
+            style={{ transform: `translateY(${-parallaxShift * 0.25}px)` }}
+          >
+            <div className="absolute right-0 top-0 w-full max-w-2xl rounded-2xl border border-slate-200 bg-slate-950 p-5 shadow-2xl">
+              <div className="mb-5 flex items-center justify-between text-white">
+                <div>
+                  <p className="text-sm font-semibold">Operations dashboard</p>
+                  <p className="text-xs text-white/60">Live workflow overview</p>
+                </div>
+                <StatusPill className="bg-primary text-primary-foreground ring-primary/40">
+                  Active
+                </StatusPill>
               </div>
-            ))}
+              <div className="grid gap-4 md:grid-cols-2">
+                {[
+                  ["Appointment list", "82%"],
+                  ["Patient reminders", "68%"],
+                  ["Team messages", "74%"],
+                  ["Digital forms", "57%"],
+                  ["Task approvals", "88%"],
+                  ["Insurance checks", "45%"],
+                ].map(([label, width], index) => (
+                  <div
+                    key={label}
+                    className="rounded-xl border border-white/10 bg-white/95 p-4 shadow-sm"
+                    style={{
+                      transform: `translateY(${Math.sin((scrollProgress + index * 80) / 160) * 8}px)`,
+                    }}
+                  >
+                    <div className="mb-4 h-2 rounded-full bg-primary/15">
+                      <div
+                        className="h-2 rounded-full bg-primary"
+                        style={{ width }}
+                      />
+                    </div>
+                    <p className="font-semibold">{label}</p>
+                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                      Operational workflow preview
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div
+              className="absolute bottom-4 left-0 w-72 rounded-2xl border border-border bg-white p-5 shadow-2xl"
+              style={{ transform: `translateY(${parallaxShift * 0.25}px)` }}
+            >
+              <p className="text-sm font-semibold">Today</p>
+              <div className="mt-4 grid gap-3">
+                {["9:00 Intake forms", "11:30 Staff handoff", "2:15 Task review"].map(
+                  (item) => (
+                    <div
+                      key={item}
+                      className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                    >
+                      {item}
+                    </div>
+                  ),
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="bg-background px-5 py-16">
-        <div className="mx-auto max-w-6xl text-center">
-          <StatusPill className="bg-primary/10 text-primary ring-primary/20">
-            Overview
-          </StatusPill>
-          <h2 className="mt-5 text-4xl font-semibold tracking-normal">
-            Built for the administrative work around care
-          </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">
-            Improve the repeatable workflows that slow teams down, while keeping
-            clinical decisions and medical documentation outside the platform.
-          </p>
-          <div className="mt-8 rounded-lg bg-slate-950 p-8 text-left text-white shadow-xl">
-            <p className="text-5xl font-semibold">Med Base workflow platform</p>
-            <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
-              Scheduling, messages, reminders, forms, and task management in one
-              operational workspace.
+      <section className="relative min-h-[85dvh] bg-slate-950 px-5 py-20 text-white">
+        <div
+          className="absolute inset-0 opacity-30"
+          style={{
+            backgroundImage:
+              "linear-gradient(90deg, rgba(13,151,186,0.35) 1px, transparent 1px), linear-gradient(rgba(255,255,255,0.14) 1px, transparent 1px)",
+            backgroundSize: "72px 72px",
+            transform: `translateY(${-parallaxShift * 0.15}px)`,
+          }}
+        />
+        <div className="relative mx-auto grid max-w-6xl gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+          <div className="lg:sticky lg:top-32">
+            <StatusPill className="bg-primary text-primary-foreground ring-primary/40">
+              Overview
+            </StatusPill>
+            <h2 className="mt-5 text-4xl font-semibold tracking-normal md:text-5xl">
+              Built for the administrative work around care
+            </h2>
+            <p className="mt-4 max-w-xl text-sm leading-7 text-slate-300">
+              Improve repeatable workflows that slow teams down, while keeping
+              clinical decisions and medical documentation outside the platform.
             </p>
+          </div>
+          <div className="grid gap-5">
+            {[
+              ["Scheduling", "Appointments, shifts, and calendar visibility"],
+              ["Communication", "Direct and group messages for staff coordination"],
+              ["Task review", "Human approval before follow-ups become work"],
+              ["Analytics", "Operational metrics for workload and throughput"],
+            ].map(([title, text], index) => (
+              <article
+                key={title}
+                className="rounded-xl border border-white/10 bg-white/10 p-6 shadow-xl backdrop-blur"
+                style={{
+                  transform: `translateY(${Math.max(0, 32 - scrollProgress * 0.015 + index * 6)}px)`,
+                }}
+              >
+                <p className="text-xl font-semibold">{title}</p>
+                <p className="mt-2 text-sm leading-6 text-slate-300">{text}</p>
+              </article>
+            ))}
           </div>
         </div>
       </section>
