@@ -1757,6 +1757,7 @@ function LandingPage({
   openLogin: () => void;
 }) {
   const [scrollProgress, setScrollProgress] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(900);
   const featureCards = [
     {
       title: "Scheduling",
@@ -1790,17 +1791,56 @@ function LandingPage({
     "Review before action",
     "Scoped workflows",
   ];
-  const parallaxShift = Math.min(scrollProgress * 0.12, 120);
+  const storyFrames = [
+    {
+      label: "Home",
+      progress: "0%",
+      title: "Med Base coordinates the work around care",
+      text: "A modular SaaS platform for scheduling, staff messaging, reminders, forms, tasks, and operational visibility.",
+    },
+    {
+      label: "Workflow entry",
+      progress: "33%",
+      title: "Start with the workflows teams repeat every day",
+      text: "Appointments, forms, reminders, messages, and task review stay connected in one operational workspace.",
+    },
+    {
+      label: "Product view",
+      progress: "66%",
+      title: "Every module stays visible as the work moves",
+      text: "Scheduling, team communication, task approvals, and analytics are organized for front desk and clinical operations teams.",
+    },
+    {
+      label: "Full layout",
+      progress: "100%",
+      title: "Ready for login, testing, and future expansion",
+      text: "The public page tells the story; the logged-in app keeps the working dashboard, calendars, messaging, settings, and Supabase foundation.",
+    },
+  ];
+  const storyProgress = Math.min(
+    Math.max(scrollProgress / Math.max(viewportHeight * 3, 1), 0),
+    1,
+  );
+  const activeStoryIndex = Math.min(
+    storyFrames.length - 1,
+    Math.floor(storyProgress * storyFrames.length),
+  );
+  const parallaxShift = storyProgress * 180;
 
   useEffect(() => {
     function updateScrollProgress() {
       setScrollProgress(window.scrollY);
+      setViewportHeight(window.innerHeight);
     }
 
     updateScrollProgress();
     window.addEventListener("scroll", updateScrollProgress, { passive: true });
+    window.addEventListener("resize", updateScrollProgress);
 
-    return () => window.removeEventListener("scroll", updateScrollProgress);
+    return () => {
+      window.removeEventListener("scroll", updateScrollProgress);
+      window.removeEventListener("resize", updateScrollProgress);
+    };
   }, []);
 
   return (
@@ -1833,154 +1873,165 @@ function LandingPage({
 
       <section
         id="overview"
-        className="relative min-h-[92dvh] px-5"
+        className="relative min-h-[420dvh] bg-[#f5fbfd]"
       >
-        <div className="absolute inset-0 bg-[#f5fbfd]" />
-        <div
-          className="absolute left-1/2 top-20 h-[420px] w-[78vw] -translate-x-1/2 rounded-[40px] border border-primary/10 bg-white/55 shadow-2xl shadow-primary/10"
-          style={{ transform: `translate(-50%, ${parallaxShift * 0.4}px)` }}
-        />
-        <div className="relative mx-auto grid min-h-[calc(92dvh-81px)] max-w-7xl gap-10 py-14 lg:grid-cols-[0.86fr_1.14fr] lg:items-center">
-          <div className="relative z-10">
-            <StatusPill className="bg-primary/10 text-primary ring-primary/20">
-              Healthcare operations
-            </StatusPill>
-            <h1 className="mt-5 max-w-xl text-4xl font-semibold leading-tight tracking-normal md:text-6xl">
-              Med Base coordinates the work around care
-            </h1>
-            <p className="mt-5 max-w-lg text-sm leading-7 text-muted-foreground md:text-base">
-              A modular SaaS platform for scheduling, staff messaging, reminders,
-              forms, tasks, and operational visibility.
-            </p>
-            <div className="mt-7 flex flex-wrap gap-3">
-              <Button onClick={openCreateAccount}>Create account</Button>
-              <Button variant="secondary" onClick={openLogin}>
-                Log in
-              </Button>
-            </div>
-            <div className="mt-10 grid gap-4 text-sm sm:grid-cols-3">
-              {[
-                ["No EHR scope", "Workflow coordination only"],
-                ["Human review", "AI drafts require approval"],
-                ["Modular", "Built to expand over time"],
-              ].map(([title, text]) => (
-                <div key={title} className="border-l-2 border-primary pl-3">
-                  <p className="font-semibold text-primary">{title}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{text}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
+        <div className="sticky top-[73px] flex min-h-[calc(100dvh-73px)] items-center overflow-hidden px-5 py-10">
           <div
-            className="relative z-10 min-h-[520px]"
-            style={{ transform: `translateY(${-parallaxShift * 0.25}px)` }}
-          >
-            <div className="absolute right-0 top-0 w-full max-w-2xl rounded-2xl border border-slate-200 bg-slate-950 p-5 shadow-2xl">
-              <div className="mb-5 flex items-center justify-between text-white">
-                <div>
-                  <p className="text-sm font-semibold">Operations dashboard</p>
-                  <p className="text-xs text-white/60">Live workflow overview</p>
-                </div>
-                <StatusPill className="bg-primary text-primary-foreground ring-primary/40">
-                  Active
-                </StatusPill>
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                {[
-                  ["Appointment list", "82%"],
-                  ["Patient reminders", "68%"],
-                  ["Team messages", "74%"],
-                  ["Digital forms", "57%"],
-                  ["Task approvals", "88%"],
-                  ["Insurance checks", "45%"],
-                ].map(([label, width], index) => (
+            className="absolute inset-x-0 top-0 h-32 bg-white"
+            style={{
+              opacity: Math.max(0, 1 - storyProgress * 2),
+              transform: `translateY(${-parallaxShift * 0.18}px)`,
+            }}
+          />
+          <div
+            className="absolute left-1/2 top-12 h-[56vh] w-[82vw] -translate-x-1/2 rounded-[42px] border border-primary/10 bg-white/70 shadow-2xl shadow-primary/10"
+            style={{
+              transform: `translate(-50%, ${parallaxShift * 0.28}px) scale(${1 + storyProgress * 0.08})`,
+            }}
+          />
+
+          <div className="relative mx-auto grid w-full max-w-7xl gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:items-center">
+            <div className="relative z-10">
+              <StatusPill className="bg-primary/10 text-primary ring-primary/20">
+                Healthcare operations
+              </StatusPill>
+              <div className="relative mt-5 h-[230px] md:h-[270px]">
+                {storyFrames.map((frame, index) => (
                   <div
-                    key={label}
-                    className="rounded-xl border border-white/10 bg-white/95 p-4 shadow-sm"
+                    key={frame.label}
+                    className="absolute max-w-xl transition-all duration-500"
                     style={{
-                      transform: `translateY(${Math.sin((scrollProgress + index * 80) / 160) * 8}px)`,
+                      opacity: activeStoryIndex === index ? 1 : 0,
+                      transform: `translateY(${activeStoryIndex === index ? 0 : 22}px)`,
+                      pointerEvents: activeStoryIndex === index ? "auto" : "none",
                     }}
                   >
-                    <div className="mb-4 h-2 rounded-full bg-primary/15">
-                      <div
-                        className="h-2 rounded-full bg-primary"
-                        style={{ width }}
-                      />
-                    </div>
-                    <p className="font-semibold">{label}</p>
-                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                      Operational workflow preview
+                    <p className="text-sm font-semibold uppercase text-primary">
+                      {frame.label} / {frame.progress}
+                    </p>
+                    <h1 className="mt-4 text-4xl font-semibold leading-tight tracking-normal md:text-6xl">
+                      {frame.title}
+                    </h1>
+                    <p className="mt-5 text-sm leading-7 text-muted-foreground md:text-base">
+                      {frame.text}
                     </p>
                   </div>
                 ))}
               </div>
+              <div className="mt-7 flex flex-wrap gap-3">
+                <Button onClick={openCreateAccount}>Create account</Button>
+                <Button variant="secondary" onClick={openLogin}>
+                  Log in
+                </Button>
+              </div>
+              <div className="mt-10 grid gap-4 text-sm sm:grid-cols-3">
+                {[
+                  ["No EHR scope", "Workflow coordination only"],
+                  ["Human review", "AI drafts require approval"],
+                  ["Modular", "Built to expand over time"],
+                ].map(([title, text]) => (
+                  <div key={title} className="border-l-2 border-primary pl-3">
+                    <p className="font-semibold text-primary">{title}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{text}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div
-              className="absolute bottom-4 left-0 w-72 rounded-2xl border border-border bg-white p-5 shadow-2xl"
-              style={{ transform: `translateY(${parallaxShift * 0.25}px)` }}
-            >
-              <p className="text-sm font-semibold">Today</p>
-              <div className="mt-4 grid gap-3">
-                {["9:00 Intake forms", "11:30 Staff handoff", "2:15 Task review"].map(
-                  (item) => (
+
+            <div className="relative z-10 min-h-[560px]">
+              <div
+                className="absolute right-0 top-0 w-full max-w-2xl rounded-2xl border border-slate-200 bg-slate-950 p-5 shadow-2xl transition-transform duration-500"
+                style={{
+                  transform: `translateY(${-parallaxShift * 0.2}px) rotate(${storyProgress * -1.5}deg)`,
+                }}
+              >
+                <div className="mb-5 flex items-center justify-between text-white">
+                  <div>
+                    <p className="text-sm font-semibold">Operations dashboard</p>
+                    <p className="text-xs text-white/60">Live workflow overview</p>
+                  </div>
+                  <StatusPill className="bg-primary text-primary-foreground ring-primary/40">
+                    Active
+                  </StatusPill>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  {[
+                    ["Appointment list", "82%"],
+                    ["Patient reminders", "68%"],
+                    ["Team messages", "74%"],
+                    ["Digital forms", "57%"],
+                    ["Task approvals", "88%"],
+                    ["Insurance checks", "45%"],
+                  ].map(([label, width], index) => (
                     <div
-                      key={item}
-                      className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                      key={label}
+                      className="rounded-xl border border-white/10 bg-white/95 p-4 shadow-sm"
+                      style={{
+                        transform: `translateY(${Math.sin((scrollProgress + index * 80) / 160) * 8}px)`,
+                      }}
                     >
-                      {item}
+                      <div className="mb-4 h-2 rounded-full bg-primary/15">
+                        <div
+                          className="h-2 rounded-full bg-primary"
+                          style={{ width }}
+                        />
+                      </div>
+                      <p className="font-semibold">{label}</p>
+                      <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                        Operational workflow preview
+                      </p>
                     </div>
-                  ),
-                )}
+                  ))}
+                </div>
+              </div>
+
+              <div
+                className="absolute bottom-6 left-0 w-72 rounded-2xl border border-border bg-white p-5 shadow-2xl transition-transform duration-500"
+                style={{
+                  transform: `translateY(${Math.max(0, 90 - storyProgress * 180)}px)`,
+                }}
+              >
+                <p className="text-sm font-semibold">Today</p>
+                <div className="mt-4 grid gap-3">
+                  {["9:00 Intake forms", "11:30 Staff handoff", "2:15 Task review"].map(
+                    (item) => (
+                      <div
+                        key={item}
+                        className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                      >
+                        {item}
+                      </div>
+                    ),
+                  )}
+                </div>
+              </div>
+
+              <div
+                className="absolute bottom-0 right-8 w-80 rounded-2xl border border-primary/20 bg-white p-5 shadow-2xl transition-all duration-500"
+                style={{
+                  opacity: storyProgress > 0.42 ? 1 : 0,
+                  transform: `translateY(${storyProgress > 0.42 ? 0 : 80}px)`,
+                }}
+              >
+                <p className="text-sm font-semibold text-primary">Scroll progress</p>
+                <div className="mt-4 grid gap-2">
+                  {storyFrames.map((frame, index) => (
+                    <div
+                      key={frame.label}
+                      className={`grid grid-cols-[70px_minmax(0,1fr)] gap-3 rounded-lg border px-3 py-2 text-xs ${
+                        activeStoryIndex === index
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border bg-background text-muted-foreground"
+                      }`}
+                    >
+                      <span className="font-semibold">{frame.progress}</span>
+                      <span>{frame.label}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </section>
-
-      <section className="relative min-h-[85dvh] bg-slate-950 px-5 py-20 text-white">
-        <div
-          className="absolute inset-0 opacity-30"
-          style={{
-            backgroundImage:
-              "linear-gradient(90deg, rgba(13,151,186,0.35) 1px, transparent 1px), linear-gradient(rgba(255,255,255,0.14) 1px, transparent 1px)",
-            backgroundSize: "72px 72px",
-            transform: `translateY(${-parallaxShift * 0.15}px)`,
-          }}
-        />
-        <div className="relative mx-auto grid max-w-6xl gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
-          <div className="lg:sticky lg:top-32">
-            <StatusPill className="bg-primary text-primary-foreground ring-primary/40">
-              Overview
-            </StatusPill>
-            <h2 className="mt-5 text-4xl font-semibold tracking-normal md:text-5xl">
-              Built for the administrative work around care
-            </h2>
-            <p className="mt-4 max-w-xl text-sm leading-7 text-slate-300">
-              Improve repeatable workflows that slow teams down, while keeping
-              clinical decisions and medical documentation outside the platform.
-            </p>
-          </div>
-          <div className="grid gap-5">
-            {[
-              ["Scheduling", "Appointments, shifts, and calendar visibility"],
-              ["Communication", "Direct and group messages for staff coordination"],
-              ["Task review", "Human approval before follow-ups become work"],
-              ["Analytics", "Operational metrics for workload and throughput"],
-            ].map(([title, text], index) => (
-              <article
-                key={title}
-                className="rounded-xl border border-white/10 bg-white/10 p-6 shadow-xl backdrop-blur"
-                style={{
-                  transform: `translateY(${Math.max(0, 32 - scrollProgress * 0.015 + index * 6)}px)`,
-                }}
-              >
-                <p className="text-xl font-semibold">{title}</p>
-                <p className="mt-2 text-sm leading-6 text-slate-300">{text}</p>
-              </article>
-            ))}
-          </div>
-        </div>
       </section>
 
       <section id="features" className="mx-auto max-w-6xl px-5 py-16">

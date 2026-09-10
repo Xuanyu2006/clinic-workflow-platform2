@@ -121,8 +121,10 @@ test("supabase public env accepts all expected Vercel key names", () => {
 
 test("landing page includes parallax scroll treatment", () => {
   assert.match(dashboard, /scrollProgress/);
+  assert.match(dashboard, /storyFrames/);
+  assert.match(dashboard, /activeStoryIndex/);
   assert.match(dashboard, /updateScrollProgress/);
   assert.match(dashboard, /Operations dashboard/);
   assert.match(dashboard, /Live workflow overview/);
-  assert.match(dashboard, /lg:sticky lg:top-32/);
+  assert.match(dashboard, /Scroll progress/);
 });
