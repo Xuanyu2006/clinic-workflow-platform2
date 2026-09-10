@@ -1844,7 +1844,7 @@ function LandingPage({
   }, []);
 
   return (
-    <main className="min-h-dvh overflow-hidden bg-white text-foreground">
+    <main className="min-h-dvh overflow-x-hidden bg-white text-foreground">
       <header className="sticky top-0 z-30 border-b border-border bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
           <button
@@ -1875,7 +1875,7 @@ function LandingPage({
         id="overview"
         className="relative min-h-[420dvh] bg-[#f5fbfd]"
       >
-        <div className="sticky top-[73px] flex min-h-[calc(100dvh-73px)] items-center overflow-hidden px-5 py-10">
+        <div className="sticky top-[73px] flex min-h-[calc(100dvh-73px)] items-start overflow-hidden px-5 py-8 lg:items-center lg:py-10">
           <div
             className="absolute inset-x-0 top-0 h-32 bg-white"
             style={{
@@ -1890,16 +1890,16 @@ function LandingPage({
             }}
           />
 
-          <div className="relative mx-auto grid w-full max-w-7xl gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:items-center">
-            <div className="relative z-10">
+          <div className="relative mx-auto grid w-full max-w-7xl gap-8 lg:grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)] lg:items-center">
+            <div className="relative z-10 min-w-0 pt-4 lg:pt-0">
               <StatusPill className="bg-primary/10 text-primary ring-primary/20">
                 Healthcare operations
               </StatusPill>
-              <div className="relative mt-5 h-[230px] md:h-[270px]">
+              <div className="relative mt-5 min-h-[390px] md:min-h-[350px] xl:min-h-[330px]">
                 {storyFrames.map((frame, index) => (
                   <div
                     key={frame.label}
-                    className="absolute max-w-xl transition-all duration-500"
+                    className="absolute inset-x-0 max-w-xl transition-all duration-500"
                     style={{
                       opacity: activeStoryIndex === index ? 1 : 0,
                       transform: `translateY(${activeStoryIndex === index ? 0 : 22}px)`,
@@ -1909,7 +1909,7 @@ function LandingPage({
                     <p className="text-sm font-semibold uppercase text-primary">
                       {frame.label} / {frame.progress}
                     </p>
-                    <h1 className="mt-4 text-4xl font-semibold leading-tight tracking-normal md:text-6xl">
+                    <h1 className="mt-4 text-4xl font-semibold leading-[1.05] tracking-normal md:text-5xl xl:text-[64px]">
                       {frame.title}
                     </h1>
                     <p className="mt-5 text-sm leading-7 text-muted-foreground md:text-base">
@@ -1938,9 +1938,9 @@ function LandingPage({
               </div>
             </div>
 
-            <div className="relative z-10 min-h-[560px]">
+            <div className="relative z-10 hidden min-h-[560px] min-w-0 md:block">
               <div
-                className="absolute right-0 top-0 w-full max-w-2xl rounded-2xl border border-slate-200 bg-slate-950 p-5 shadow-2xl transition-transform duration-500"
+                className="relative ml-auto w-full max-w-[640px] rounded-2xl border border-slate-200 bg-slate-950 p-5 shadow-2xl transition-transform duration-500"
                 style={{
                   transform: `translateY(${-parallaxShift * 0.2}px) rotate(${storyProgress * -1.5}deg)`,
                 }}
@@ -1986,7 +1986,7 @@ function LandingPage({
               </div>
 
               <div
-                className="absolute bottom-6 left-0 w-72 rounded-2xl border border-border bg-white p-5 shadow-2xl transition-transform duration-500"
+                className="absolute bottom-8 left-0 w-72 rounded-2xl border border-border bg-white p-5 shadow-2xl transition-transform duration-500"
                 style={{
                   transform: `translateY(${Math.max(0, 90 - storyProgress * 180)}px)`,
                 }}
@@ -2007,7 +2007,7 @@ function LandingPage({
               </div>
 
               <div
-                className="absolute bottom-0 right-8 w-80 rounded-2xl border border-primary/20 bg-white p-5 shadow-2xl transition-all duration-500"
+                className="absolute bottom-0 right-8 hidden w-80 rounded-2xl border border-primary/20 bg-white p-5 shadow-2xl transition-all duration-500 xl:block"
                 style={{
                   opacity: storyProgress > 0.42 ? 1 : 0,
                   transform: `translateY(${storyProgress > 0.42 ? 0 : 80}px)`,
