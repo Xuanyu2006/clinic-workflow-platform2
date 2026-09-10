@@ -1845,7 +1845,7 @@ function LandingPage({
 
   return (
     <main className="min-h-dvh overflow-x-hidden bg-white text-foreground">
-      <header className="sticky top-0 z-30 border-b border-border bg-white/90 backdrop-blur-xl">
+      <header className="sticky top-0 z-30 border-b border-white/10 bg-[#06172f]/92 text-white backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
           <button
             className="flex items-center gap-2 text-sm font-semibold"
@@ -1854,8 +1854,8 @@ function LandingPage({
           >
             <MedBaseLogo compact />
           </button>
-          <nav className="hidden items-center gap-8 text-xs font-medium text-muted-foreground md:flex">
-            <a className="text-primary" href="#overview">
+          <nav className="hidden items-center gap-8 text-xs font-medium text-slate-300 md:flex">
+            <a className="text-cyan-200" href="#overview">
               Overview
             </a>
             <a href="#features">Features</a>
@@ -1873,18 +1873,20 @@ function LandingPage({
 
       <section
         id="overview"
-        className="relative min-h-dvh bg-[#f5fbfd]"
+        className="relative min-h-dvh bg-[#06172f] text-white"
       >
         <div className="sticky top-[73px] flex min-h-[calc(100dvh-73px)] items-start overflow-hidden px-5 py-8 lg:items-center lg:py-10">
           <div
-            className="absolute inset-x-0 top-0 h-32 bg-white"
+            className="absolute inset-0 opacity-45"
             style={{
-              opacity: Math.max(0, 1 - storyProgress * 2),
-              transform: `translateY(${-parallaxShift * 0.18}px)`,
+              backgroundImage:
+                "radial-gradient(circle at 12% 18%, rgba(255,255,255,0.9) 0 1px, transparent 1.5px), radial-gradient(circle at 72% 28%, rgba(13,151,186,0.85) 0 1px, transparent 1.5px), radial-gradient(circle at 42% 78%, rgba(255,255,255,0.65) 0 1px, transparent 1.5px), linear-gradient(135deg, rgba(13,151,186,0.14), transparent 42%)",
+              backgroundSize: "180px 180px, 260px 260px, 220px 220px, 100% 100%",
+              transform: `translateY(${-parallaxShift * 0.12}px)`,
             }}
           />
           <div
-            className="absolute left-1/2 top-12 h-[56vh] w-[82vw] -translate-x-1/2 rounded-[42px] border border-primary/10 bg-white/70 shadow-2xl shadow-primary/10"
+            className="absolute left-1/2 top-12 h-[56vh] w-[82vw] -translate-x-1/2 rounded-[42px] border border-white/10 bg-white/[0.04] shadow-2xl shadow-primary/10"
             style={{
               transform: `translate(-50%, ${parallaxShift * 0.28}px) scale(${1 + storyProgress * 0.08})`,
             }}
@@ -1892,7 +1894,7 @@ function LandingPage({
 
           <div className="relative mx-auto grid w-full max-w-7xl gap-8 lg:grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)] lg:items-center">
             <div className="relative z-10 min-w-0 pt-4 lg:pt-0">
-              <StatusPill className="bg-primary/10 text-primary ring-primary/20">
+              <StatusPill className="bg-primary/20 text-cyan-100 ring-primary/30">
                 Healthcare operations
               </StatusPill>
               <div className="relative mt-5 min-h-[390px] md:min-h-[350px] xl:min-h-[330px]">
@@ -1906,13 +1908,13 @@ function LandingPage({
                       pointerEvents: activeStoryIndex === index ? "auto" : "none",
                     }}
                   >
-                    <p className="text-sm font-semibold uppercase text-primary">
+                    <p className="text-sm font-semibold uppercase text-cyan-200">
                       {frame.label} / {frame.progress}
                     </p>
-                    <h1 className="mt-4 text-4xl font-semibold leading-[1.05] tracking-normal md:text-5xl xl:text-[64px]">
+                    <h1 className="mt-4 text-4xl font-semibold leading-[1.05] tracking-normal text-white md:text-5xl xl:text-[64px]">
                       {frame.title}
                     </h1>
-                    <p className="mt-5 text-sm leading-7 text-muted-foreground md:text-base">
+                    <p className="mt-5 text-sm leading-7 text-slate-300 md:text-base">
                       {frame.text}
                     </p>
                   </div>
@@ -1931,8 +1933,8 @@ function LandingPage({
                   ["Modular", "Built to expand over time"],
                 ].map(([title, text]) => (
                   <div key={title} className="border-l-2 border-primary pl-3">
-                    <p className="font-semibold text-primary">{title}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{text}</p>
+                    <p className="font-semibold text-cyan-100">{title}</p>
+                    <p className="mt-1 text-xs text-slate-300">{text}</p>
                   </div>
                 ))}
               </div>

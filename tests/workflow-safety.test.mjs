@@ -126,6 +126,8 @@ test("landing page includes parallax scroll treatment", () => {
   assert.match(dashboard, /updateScrollProgress/);
   assert.match(dashboard, /Operations dashboard/);
   assert.match(dashboard, /Live workflow overview/);
+  assert.match(dashboard, /bg-\[#06172f\]/);
+  assert.match(dashboard, /radial-gradient\(circle at 12% 18%/);
   assert.doesNotMatch(dashboard, /Scroll progress/);
   assert.match(dashboard, /min-h-dvh/);
   assert.match(dashboard, /viewportHeight \* 0\.2/);
