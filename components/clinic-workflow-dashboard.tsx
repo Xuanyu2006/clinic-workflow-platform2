@@ -2032,6 +2032,7 @@ function LandingPage({
               </div>
             </div>
           </div>
+        </div>
       </section>
 
       <section id="features" className="mx-auto max-w-6xl px-5 py-16">
