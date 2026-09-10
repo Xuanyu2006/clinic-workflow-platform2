@@ -2006,30 +2006,6 @@ function LandingPage({
                 </div>
               </div>
 
-              <div
-                className="absolute bottom-0 right-8 hidden w-80 rounded-2xl border border-primary/20 bg-white p-5 shadow-2xl transition-all duration-500 xl:block"
-                style={{
-                  opacity: storyProgress > 0.42 ? 1 : 0,
-                  transform: `translateY(${storyProgress > 0.42 ? 0 : 80}px)`,
-                }}
-              >
-                <p className="text-sm font-semibold text-primary">Scroll progress</p>
-                <div className="mt-4 grid gap-2">
-                  {storyFrames.map((frame, index) => (
-                    <div
-                      key={frame.label}
-                      className={`grid grid-cols-[70px_minmax(0,1fr)] gap-3 rounded-lg border px-3 py-2 text-xs ${
-                        activeStoryIndex === index
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border bg-background text-muted-foreground"
-                      }`}
-                    >
-                      <span className="font-semibold">{frame.progress}</span>
-                      <span>{frame.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </div>
           </div>
         </div>
