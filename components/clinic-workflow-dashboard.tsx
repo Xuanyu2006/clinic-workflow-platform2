@@ -223,16 +223,6 @@ const rolePermissions: Record<Role, Module[]> = {
   Receptionist: ["Dashboard", "Scheduling", "Tasks", "Messages", "Communication"],
 };
 
-const moduleIconLabels: Record<Module, string> = {
-  Dashboard: "##",
-  Scheduling: "[]",
-  Tasks: ":-",
-  Messages: "[]",
-  Communication: "()",
-  Analytics: "||",
-  Settings: "o-",
-};
-
 const departmentOptions = [
   "Front Desk",
   "Clinical Operations",
@@ -1652,9 +1642,7 @@ export function MedBaseDashboard() {
                 type="button"
                 onClick={() => setActiveModule(module)}
               >
-                <span className="text-xl font-semibold text-slate-500">
-                  {moduleIconLabels[module]}
-                </span>
+                <ModuleIcon module={module} />
                 <span>{module}</span>
                 <span
                   className={`h-6 rounded-full ${
@@ -3927,6 +3915,79 @@ function MedBaseLogo({ compact = false }: { compact?: boolean }) {
         width={compact ? 168 : 192}
       />
       <span className="sr-only">Med Base</span>
+    </span>
+  );
+}
+
+function ModuleIcon({ module }: { module: Module }) {
+  const iconClassName = "h-5 w-5";
+
+  return (
+    <span className="grid size-8 place-items-center text-current" aria-hidden="true">
+      <svg
+        className={iconClassName}
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        viewBox="0 0 24 24"
+      >
+        {module === "Dashboard" ? (
+          <>
+            <rect height="7" rx="1.5" width="7" x="3" y="3" />
+            <rect height="7" rx="1.5" width="7" x="14" y="3" />
+            <rect height="7" rx="1.5" width="7" x="3" y="14" />
+            <rect height="7" rx="1.5" width="7" x="14" y="14" />
+          </>
+        ) : null}
+        {module === "Scheduling" ? (
+          <>
+            <rect height="18" rx="2" width="18" x="3" y="4" />
+            <path d="M8 2v4" />
+            <path d="M16 2v4" />
+            <path d="M3 10h18" />
+          </>
+        ) : null}
+        {module === "Tasks" ? (
+          <>
+            <path d="M9 6h11" />
+            <path d="M9 12h11" />
+            <path d="M9 18h11" />
+            <path d="m3 6 1.5 1.5L7 5" />
+            <path d="m3 12 1.5 1.5L7 11" />
+            <path d="m3 18 1.5 1.5L7 17" />
+          </>
+        ) : null}
+        {module === "Messages" ? (
+          <>
+            <rect height="14" rx="2" width="18" x="3" y="5" />
+            <path d="m3 7 9 6 9-6" />
+          </>
+        ) : null}
+        {module === "Communication" ? (
+          <>
+            <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.6 8.6 0 0 1-7.7 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.6A8.4 8.4 0 0 1 4 11.5 8.6 8.6 0 0 1 12.6 3 8.5 8.5 0 0 1 21 11.5Z" />
+          </>
+        ) : null}
+        {module === "Analytics" ? (
+          <>
+            <path d="M5 20V11" />
+            <path d="M12 20V4" />
+            <path d="M19 20v-7" />
+          </>
+        ) : null}
+        {module === "Settings" ? (
+          <>
+            <path d="M4 7h10" />
+            <path d="M18 7h2" />
+            <circle cx="16" cy="7" r="2" />
+            <path d="M4 17h2" />
+            <path d="M10 17h10" />
+            <circle cx="8" cy="17" r="2" />
+          </>
+        ) : null}
+      </svg>
     </span>
   );
 }

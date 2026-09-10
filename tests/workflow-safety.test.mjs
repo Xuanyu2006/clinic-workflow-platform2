@@ -101,3 +101,9 @@ test("scheduled items can be opened moved and deleted", () => {
   assert.match(dashboard, /Move schedule item/);
   assert.match(dashboard, /Delete schedule item/);
 });
+
+test("sidebar uses proper svg module icons", () => {
+  assert.match(dashboard, /function ModuleIcon/);
+  assert.match(dashboard, /<ModuleIcon module={module} \/>/);
+  assert.doesNotMatch(dashboard, /moduleIconLabels/);
+});
