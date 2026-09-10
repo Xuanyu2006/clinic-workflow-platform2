@@ -1818,7 +1818,7 @@ function LandingPage({
     },
   ];
   const storyProgress = Math.min(
-    Math.max(scrollProgress / Math.max(viewportHeight * 0.35, 1), 0),
+    Math.max(scrollProgress / Math.max(viewportHeight * 0.2, 1), 0),
     1,
   );
   const activeStoryIndex = Math.min(
@@ -1873,7 +1873,7 @@ function LandingPage({
 
       <section
         id="overview"
-        className="relative min-h-[118dvh] bg-[#f5fbfd]"
+        className="relative min-h-dvh bg-[#f5fbfd]"
       >
         <div className="sticky top-[73px] flex min-h-[calc(100dvh-73px)] items-start overflow-hidden px-5 py-8 lg:items-center lg:py-10">
           <div
@@ -2035,7 +2035,7 @@ function LandingPage({
         </div>
       </section>
 
-      <section id="features" className="mx-auto max-w-6xl px-5 pb-8 pt-3">
+      <section id="features" className="mx-auto max-w-6xl px-5 pb-8 pt-0">
         <div className="text-center">
           <StatusPill className="bg-primary/10 text-primary ring-primary/20">
             Features

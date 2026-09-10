@@ -127,8 +127,9 @@ test("landing page includes parallax scroll treatment", () => {
   assert.match(dashboard, /Operations dashboard/);
   assert.match(dashboard, /Live workflow overview/);
   assert.match(dashboard, /Scroll progress/);
-  assert.match(dashboard, /min-h-\[118dvh\]/);
-  assert.match(dashboard, /viewportHeight \* 0\.35/);
+  assert.match(dashboard, /min-h-dvh/);
+  assert.match(dashboard, /viewportHeight \* 0\.2/);
+  assert.doesNotMatch(dashboard, /min-h-\[118dvh\]/);
   assert.doesNotMatch(dashboard, /min-h-\[165dvh\]/);
   assert.doesNotMatch(dashboard, /min-h-\[260dvh\]/);
   assert.doesNotMatch(dashboard, /min-h-\[420dvh\]/);
