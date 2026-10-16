@@ -3,10 +3,19 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Med Base",
+    default: "Med Base | Staff Scheduling & Team Coordination",
     template: "%s | Med Base",
   },
-  description: "A secure healthcare operations workflow platform foundation.",
+  metadataBase: new URL("https://medbasehealth.com"),
+  description:
+    "Explore the Med Base fictional-data pilot for staff schedules, team messages, and reviewed follow-up tasks.",
+  openGraph: {
+    title: "Med Base",
+    description:
+      "Staff schedules, team messages, and reviewed follow-up tasks.",
+    url: "https://medbasehealth.com",
+    type: "website",
+  },
 };
 
 export default function RootLayout({
