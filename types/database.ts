@@ -402,6 +402,23 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      create_team_conversation: {
+        Args: { chat_name: string; member_emails: string[] };
+        Returns: string;
+      };
+      add_conversation_member: {
+        Args: { chat_id: string; member_email: string };
+        Returns: undefined;
+      };
+      create_workspace_invite: {
+        Args: {
+          invite_email: string;
+          invite_role: AppRole;
+          invite_department: string;
+        };
+        Returns: string;
+      };
+
       current_user_organization_id: {
         Args: Record<string, never>;
         Returns: string | null;
