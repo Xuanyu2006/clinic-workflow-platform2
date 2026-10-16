@@ -1372,13 +1372,11 @@ export function MedBaseDashboard() {
     settingsQueue.current = settingsQueue.current
       .catch(() => {})
       .then(async () => {
-        const { error } = await supabase
-          .from("user_settings")
-          .upsert({
-            user_id: currentUserId,
-            organization_id: currentOrganizationId,
-            settings: nextSettings,
-          });
+        const { error } = await supabase.from("user_settings").upsert({
+          user_id: currentUserId,
+          organization_id: currentOrganizationId,
+          settings: nextSettings,
+        });
         if (error)
           setWorkspaceError("Settings were not saved: " + error.message);
       });
@@ -2044,7 +2042,12 @@ function LandingPage({
             <Button variant="secondary" onClick={openLogin}>
               Login
             </Button>
-            <Button onClick={openCreateAccount}>Get Started</Button>
+            <a
+              href="/request-demo"
+              className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-white hover:opacity-90"
+            >
+              Request a demo
+            </a>
           </div>
         </div>
       </header>
@@ -2102,7 +2105,12 @@ function LandingPage({
                 ))}
               </div>
               <div className="mt-5 flex flex-wrap gap-3">
-                <Button onClick={openCreateAccount}>Create account</Button>
+                <a
+                  href="/request-demo"
+                  className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-white hover:opacity-90"
+                >
+                  Request a demo
+                </a>
                 <Button variant="secondary" onClick={openLogin}>
                   Log in
                 </Button>
@@ -2472,6 +2480,7 @@ function LandingPage({
           <div className="grid content-start gap-3">
             <h3 className="font-semibold">Pilot</h3>
             <a href="/pilot-info">Use and data handling</a>
+            <a href="/request-demo">Request a demo</a>
             <button className="text-left" onClick={openCreateAccount}>
               Start a fictional-data pilot
             </button>
