@@ -1,10 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { User } from "@supabase/supabase-js";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { env } from "@/lib/env";
+import {
+  getMonthCalendarDays,
+  isSameCalendarDate,
+  matchesTaskFilter,
+} from "@/lib/workflow";
 import { createOptionalClient } from "@/lib/supabase/client";
 
 type Role =
@@ -50,6 +54,7 @@ type Task = {
   department: string;
   priority: "Low" | "Medium" | "High";
   dueDate: string;
+  dueAt?: string;
   status: TaskStatus;
   notes: string;
   completionTimestamp: string;
@@ -121,6 +126,7 @@ type PendingInvite = {
   email: string;
   role: Role;
   department: string;
+  url?: string;
 };
 
 const previewOrganizationId = "00000000-0000-0000-0000-000000000001";
@@ -170,7 +176,13 @@ const rolePermissions: Record<Role, Module[]> = {
     "Messages",
     "Communication",
   ],
-  "Front Desk": ["Dashboard", "Scheduling", "Tasks", "Messages", "Communication"],
+  "Front Desk": [
+    "Dashboard",
+    "Scheduling",
+    "Tasks",
+    "Messages",
+    "Communication",
+  ],
   "Office Manager": [
     "Dashboard",
     "Scheduling",
@@ -220,7 +232,13 @@ const rolePermissions: Record<Role, Module[]> = {
     "Analytics",
     "Settings",
   ],
-  Receptionist: ["Dashboard", "Scheduling", "Tasks", "Messages", "Communication"],
+  Receptionist: [
+    "Dashboard",
+    "Scheduling",
+    "Tasks",
+    "Messages",
+    "Communication",
+  ],
 };
 
 const departmentOptions = [
@@ -335,26 +353,6 @@ function getScheduleDate(event: ScheduleEvent) {
   return event.startsAt ? new Date(event.startsAt) : null;
 }
 
-function isSameCalendarDate(firstDate: Date, secondDate: Date) {
-  return (
-    firstDate.getFullYear() === secondDate.getFullYear() &&
-    firstDate.getMonth() === secondDate.getMonth() &&
-    firstDate.getDate() === secondDate.getDate()
-  );
-}
-
-function getMonthCalendarDays(monthDate: Date) {
-  const firstDay = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
-  const calendarStart = new Date(firstDay);
-  calendarStart.setDate(firstDay.getDate() - firstDay.getDay());
-
-  return Array.from({ length: 35 }, (_, index) => {
-    const date = new Date(calendarStart);
-    date.setDate(calendarStart.getDate() + index);
-    return date;
-  });
-}
-
 function normalizeScheduleEventType(value: string): ScheduleEvent["type"] {
   return value === "Staff Shift" || value === "Admin" ? value : "Clinic";
 }
@@ -370,25 +368,16 @@ function formatDueDate(value: string | null) {
   }).format(new Date(value));
 }
 
-function parseRelativeDueDate(value: string) {
-  const dueAt = new Date();
-  const timeMatch = value.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-
-  if (!timeMatch) {
-    return dueAt.toISOString();
-  }
-
-  const rawHour = Number(timeMatch[1]);
-  const minutes = Number(timeMatch[2]);
-  const isPm = timeMatch[3].toLowerCase() === "pm";
-  const hours = rawHour === 12 ? (isPm ? 12 : 0) : isPm ? rawHour + 12 : rawHour;
-  dueAt.setHours(hours, minutes, 0, 0);
-
-  return dueAt.toISOString();
-}
-
 function dateForWeekday(day: string, time: string) {
-  const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const weekdays = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+  ];
   const targetDay = weekdays.indexOf(day);
   const nextDate = new Date();
   const dayDelta = targetDay >= 0 ? (targetDay - nextDate.getDay() + 7) % 7 : 0;
@@ -399,7 +388,8 @@ function dateForWeekday(day: string, time: string) {
     const rawHour = Number(timeMatch[1]);
     const minutes = Number(timeMatch[2]);
     const isPm = timeMatch[3].toLowerCase() === "pm";
-    const hours = rawHour === 12 ? (isPm ? 12 : 0) : isPm ? rawHour + 12 : rawHour;
+    const hours =
+      rawHour === 12 ? (isPm ? 12 : 0) : isPm ? rawHour + 12 : rawHour;
     nextDate.setHours(hours, minutes, 0, 0);
   }
 
@@ -410,15 +400,22 @@ export function MedBaseDashboard() {
   const supabase = useMemo(() => createOptionalClient(), []);
   const [userEmail, setUserEmail] = useState("");
   const [currentUserId, setCurrentUserId] = useState("");
-  const [currentOrganizationId, setCurrentOrganizationId] = useState(previewOrganizationId);
-  const [role, setRole] = useState<Role>("Administrator");
+  const [currentOrganizationId, setCurrentOrganizationId] = useState(
+    previewOrganizationId,
+  );
+  const [role, setRole] = useState<Role>("Front Desk");
+  const settingsQueue = useRef(Promise.resolve());
+  const [now, setNow] = useState(() => new Date());
+  const [workspaceError, setWorkspaceError] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "create">("login");
   const [authView, setAuthView] = useState<"landing" | "auth">("landing");
   const [authError, setAuthError] = useState("");
   const [authNotice, setAuthNotice] = useState("");
-  const [authStatus, setAuthStatus] = useState<"checking" | "signed-in" | "signed-out">(
-    "checking",
-  );
+  const [authStatus, setAuthStatus] = useState<
+    "checking" | "signed-in" | "signed-out"
+  >("checking");
   const [authForm, setAuthForm] = useState({
     email: "",
     password: "",
@@ -428,9 +425,9 @@ export function MedBaseDashboard() {
   const [activeModule, setActiveModule] = useState<Module>("Dashboard");
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [taskFilter, setTaskFilter] = useState("Today's Tasks");
-  const [scheduleView, setScheduleView] = useState<"Daily" | "Weekly" | "Monthly">(
-    "Weekly",
-  );
+  const [scheduleView, setScheduleView] = useState<
+    "Daily" | "Weekly" | "Monthly"
+  >("Weekly");
   const [scheduleEvents, setScheduleEvents] = useState(initialScheduleEvents);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [selectedScheduleEventId, setSelectedScheduleEventId] = useState("");
@@ -444,7 +441,9 @@ export function MedBaseDashboard() {
     details: "",
   });
   const [teamChats, setTeamChats] = useState(initialChats);
-  const [selectedChatId, setSelectedChatId] = useState(initialChats[0]?.id ?? "");
+  const [selectedChatId, setSelectedChatId] = useState(
+    initialChats[0]?.id ?? "",
+  );
   const [communicationBoards, setCommunicationBoards] = useState(
     initialCommunicationBoards,
   );
@@ -461,9 +460,10 @@ export function MedBaseDashboard() {
   const [newAppointmentType, setNewAppointmentType] = useState("");
   const [userSettings, setUserSettings] = useState(initialUserSettings);
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
-  const [staffMembers, setStaffMembers] = useState<
-    { name: string; role: Role; department: string }[]
-  >(staffDirectory);
+  const [staffMembers, setStaffMembers] =
+    useState<{ name: string; role: Role; department: string }[]>(
+      staffDirectory,
+    );
   const [inviteDraft, setInviteDraft] = useState({
     email: "",
     role: "Front Desk" as Role,
@@ -472,8 +472,12 @@ export function MedBaseDashboard() {
   const [chatDraft, setChatDraft] = useState("");
   const [messageError, setMessageError] = useState("");
   const [newGroupName, setNewGroupName] = useState("");
-  const [newGroupParticipants, setNewGroupParticipants] = useState<string[]>([]);
-  const [participantToAdd, setParticipantToAdd] = useState(staffDirectory[0]?.name ?? "");
+  const [newGroupParticipants, setNewGroupParticipants] = useState<string[]>(
+    [],
+  );
+  const [participantToAdd, setParticipantToAdd] = useState(
+    staffDirectory[0]?.name ?? "",
+  );
   const [summarySuggestion, setSummarySuggestion] =
     useState<SummarySuggestion | null>(null);
   const allowedModules = rolePermissions[role];
@@ -508,7 +512,10 @@ export function MedBaseDashboard() {
       }
     }
 
-    loadSession();
+    void loadSession().catch(() => {
+      setAuthStatus("signed-out");
+      setAuthError("Unable to check your session. Please try again.");
+    });
 
     const {
       data: { subscription },
@@ -534,22 +541,31 @@ export function MedBaseDashboard() {
 
   async function loadAuthenticatedUser(user: User) {
     const email = user.email ?? "";
-    setUserEmail(email);
-    setCurrentUserId(user.id);
-    setAuthStatus("signed-in");
-    setAuthView("landing");
 
     if (!supabase) {
       return;
     }
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("user_profiles")
       .select("organization_id, role")
       .eq("id", user.id)
       .maybeSingle();
 
-    const organizationId = data?.organization_id ?? previewOrganizationId;
+    if (error || !data?.organization_id || !data.role) {
+      setUserEmail("");
+      setAuthStatus("signed-out");
+      setAuthView("auth");
+      setAuthError(
+        "Your workspace could not be loaded. Please contact the workspace owner.",
+      );
+      return;
+    }
+    const organizationId = data.organization_id;
+    setCurrentUserId(user.id);
+    setUserEmail(email);
+    setAuthStatus("signed-in");
+    setAuthView("landing");
     setCurrentOrganizationId(organizationId);
 
     if (data?.role) {
@@ -604,13 +620,33 @@ export function MedBaseDashboard() {
         .select("name")
         .eq("organization_id", organizationId)
         .order("name", { ascending: true }),
-      supabase.from("user_settings").select("settings").eq("user_id", userId).maybeSingle(),
+      supabase
+        .from("user_settings")
+        .select("settings")
+        .eq("user_id", userId)
+        .maybeSingle(),
       supabase
         .from("user_profiles")
-        .select("email, full_name, role, department")
+        .select("id, email, full_name, role, department")
         .eq("organization_id", organizationId)
         .order("email", { ascending: true }),
     ]);
+
+    const failed = [
+      tasksResult,
+      scheduleResult,
+      conversationsResult,
+      messagesResult,
+      communicationResult,
+      departmentsResult,
+      settingsResult,
+      profilesResult,
+    ].find((result) => result.error);
+    if (failed?.error) {
+      setWorkspaceError("Workspace refresh failed: " + failed.error.message);
+      return;
+    }
+    setWorkspaceError("");
 
     if (tasksResult.data) {
       setTasks(
@@ -622,6 +658,7 @@ export function MedBaseDashboard() {
           department: task.department ?? "Administration",
           priority: task.priority,
           dueDate: formatDueDate(task.due_at),
+          dueAt: task.due_at ?? undefined,
           status: task.status,
           notes: task.notes,
           completionTimestamp: task.completion_timestamp
@@ -641,31 +678,60 @@ export function MedBaseDashboard() {
           day: formatScheduleDay(event.starts_at),
           time: formatScheduleTime(event.starts_at),
           type: normalizeScheduleEventType(event.event_type),
-          appointmentType: event.event_type === "Clinic" ? event.title : undefined,
+          appointmentType:
+            event.event_type === "Clinic" ? event.title : undefined,
           details: event.location ?? "",
         })),
       );
     }
 
+    const membershipResult = await supabase
+      .from("conversation_members")
+      .select("conversation_id, user_id");
+    if (membershipResult.error) {
+      setWorkspaceError(membershipResult.error.message);
+      return;
+    }
+    const profiles = profilesResult.data ?? [];
     if (conversationsResult.data && messagesResult.data) {
       setTeamChats(
         conversationsResult.data.map((conversation) => ({
           id: conversation.id,
           name: conversation.name,
           type: conversation.chat_type,
-          participants: [],
+          participants: (membershipResult.data ?? [])
+            .filter((member) => member.conversation_id === conversation.id)
+            .map((member) => {
+              const profile = profiles.find(
+                (profile) => profile.id === member.user_id,
+              );
+              return (
+                profile?.full_name || profile?.email || "Former team member"
+              );
+            }),
           messages: messagesResult.data
             .filter((message) => message.conversation_id === conversation.id)
             .map((message) => ({
               id: message.id,
-              author: "Team member",
-              role,
+              author:
+                profiles.find((profile) => profile.id === message.author_id)
+                  ?.full_name ||
+                profiles.find((profile) => profile.id === message.author_id)
+                  ?.email ||
+                "Former team member",
+              role: (profiles.find(
+                (profile) => profile.id === message.author_id,
+              )?.role ?? "Front Desk") as Role,
               text: message.body,
               time: formatScheduleTime(message.created_at),
             })),
         })),
       );
-      setSelectedChatId(conversationsResult.data[0]?.id ?? "");
+      setSelectedChatId((current) =>
+        conversationsResult.data.some((chat) => chat.id === current)
+          ? current
+          : (conversationsResult.data[0]?.id ?? ""),
+      );
     }
 
     if (communicationResult.data) {
@@ -688,7 +754,9 @@ export function MedBaseDashboard() {
     }
 
     if (departmentsResult.data && departmentsResult.data.length > 0) {
-      setDepartments(departmentsResult.data.map((department) => department.name));
+      setDepartments(
+        departmentsResult.data.map((department) => department.name),
+      );
     }
 
     if (
@@ -696,8 +764,8 @@ export function MedBaseDashboard() {
       typeof settingsResult.data.settings === "object" &&
       !Array.isArray(settingsResult.data.settings)
     ) {
-      const savedSettings =
-        settingsResult.data.settings as Partial<UserPreferenceSettings>;
+      const savedSettings = settingsResult.data
+        .settings as Partial<UserPreferenceSettings>;
       const nextAppointmentTypes = savedSettings.appointmentTypes?.length
         ? savedSettings.appointmentTypes
         : defaultAppointmentTypes;
@@ -716,61 +784,28 @@ export function MedBaseDashboard() {
 
     if (profilesResult.data) {
       const nextStaffMembers = profilesResult.data.map((profile) => ({
-          name: profile.full_name || profile.email,
-          role: profile.role as Role,
-          department: profile.department || "Unassigned",
-        }));
+        name: profile.email,
+        role: profile.role as Role,
+        department: profile.department || "Unassigned",
+      }));
       setStaffMembers(nextStaffMembers);
       setParticipantToAdd(nextStaffMembers[0]?.name ?? "");
     }
   }
 
-  async function writeAuditLog(
-    action: string,
-    resourceType: string,
-    resourceId?: string,
-  ) {
-    if (!supabase || !currentUserId) {
-      return;
-    }
-
-    await supabase.from("audit_logs").insert({
-      organization_id: currentOrganizationId,
-      actor_id: currentUserId,
-      action,
-      resource_type: resourceType,
-      resource_id: resourceId,
-    });
-  }
-
-  async function ensureUserProfile(user: User, selectedRole: Role) {
-    if (!supabase || !user.email) {
-      return;
-    }
-
-    const { data: existingProfile } = await supabase
-      .from("user_profiles")
-      .select("id")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (existingProfile) {
-      await supabase
-        .from("user_profiles")
-        .update({ email: user.email })
-        .eq("id", user.id);
-      return;
-    }
-
-    await supabase.from("user_profiles").insert({
-      id: user.id,
-      organization_id: previewOrganizationId,
-      email: user.email,
-      role: selectedRole,
-    });
-  }
-
   async function handleAuth() {
+    if (authBusy) return;
+    setAuthBusy(true);
+    try {
+      await performAuth();
+    } catch {
+      setAuthError("Unable to connect. Please try again.");
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function performAuth() {
     if (!authForm.email || !authForm.password) {
       setAuthError("Enter an email and password to continue.");
       return;
@@ -788,7 +823,10 @@ export function MedBaseDashboard() {
       return;
     }
 
-    if (authMode === "create" && authForm.password !== authForm.confirmPassword) {
+    if (
+      authMode === "create" &&
+      authForm.password !== authForm.confirmPassword
+    ) {
       setAuthError("Passwords do not match.");
       return;
     }
@@ -799,15 +837,9 @@ export function MedBaseDashboard() {
     }
 
     if (!supabase) {
-      setUserEmail(authForm.email);
-      setAuthNotice(
-        "Preview mode is active because Supabase environment variables are not configured yet.",
+      setAuthError(
+        "Sign-in is temporarily unavailable. Please try again later.",
       );
-      setAuthStatus("signed-in");
-      setAuthError("");
-      setAuthForm({ email: "", password: "", confirmPassword: "", organizationName: "" });
-      setAuthView("landing");
-      setActiveModule("Dashboard");
       return;
     }
 
@@ -819,8 +851,10 @@ export function MedBaseDashboard() {
         email: authForm.email,
         password: authForm.password,
         options: {
+          emailRedirectTo: window.location.origin,
           data: {
-            role,
+            invite_token:
+              new URLSearchParams(window.location.search).get("invite") ?? "",
             organization_name: authForm.organizationName.trim(),
           },
         },
@@ -831,20 +865,26 @@ export function MedBaseDashboard() {
         return;
       }
 
-      if (data.user) {
-        await ensureUserProfile(data.user, role);
-      }
-
       if (!data.session) {
         setAuthNotice(
-          "Account created. Check email verification settings in Supabase if login is not immediate.",
+          "Check your email to verify your account, then return here to log in.",
         );
-        setAuthForm({ email: "", password: "", confirmPassword: "", organizationName: "" });
+        setAuthForm({
+          email: "",
+          password: "",
+          confirmPassword: "",
+          organizationName: "",
+        });
         return;
       }
 
       await loadAuthenticatedUser(data.session.user);
-      setAuthForm({ email: "", password: "", confirmPassword: "", organizationName: "" });
+      setAuthForm({
+        email: "",
+        password: "",
+        confirmPassword: "",
+        organizationName: "",
+      });
       setActiveModule("Dashboard");
       return;
     }
@@ -860,44 +900,67 @@ export function MedBaseDashboard() {
     }
 
     if (data.user) {
-      await ensureUserProfile(data.user, role);
       await loadAuthenticatedUser(data.user);
     }
 
-    setAuthForm({ email: "", password: "", confirmPassword: "", organizationName: "" });
+    setAuthForm({
+      email: "",
+      password: "",
+      confirmPassword: "",
+      organizationName: "",
+    });
     setActiveModule("Dashboard");
   }
 
   async function signOut() {
     if (supabase) {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: "local" });
     }
 
     setUserEmail("");
+    setCurrentUserId("");
+    setCurrentOrganizationId("");
+    setRole("Front Desk");
+    setTasks([]);
+    setScheduleEvents([]);
+    setTeamChats([]);
+    setStaffMembers([]);
+    setPendingInvites([]);
+    setUserSettings(initialUserSettings);
+    setDepartments(departmentOptions);
     setAuthStatus("signed-out");
     setActiveModule("Dashboard");
     setChatDraft("");
     setSummarySuggestion(null);
   }
 
-  async function moveScheduleEvent(eventId: string, day: string) {
-    const eventToMove = scheduleEvents.find((event) => event.id === eventId);
-    const nextStartsAt = eventToMove ? dateForWeekday(day, eventToMove.time) : "";
-
+  async function moveScheduleEvent(eventId: string, targetDate: string) {
+    const event = scheduleEvents.find((item) => item.id === eventId);
+    if (!supabase || !event?.startsAt) return;
+    const next = new Date(event.startsAt);
+    const target = new Date(targetDate);
+    next.setFullYear(target.getFullYear(), target.getMonth(), target.getDate());
+    const { data, error } = await supabase
+      .from("schedule_events")
+      .update({ starts_at: next.toISOString() })
+      .eq("id", eventId)
+      .select("id")
+      .single();
+    if (error || !data) {
+      setWorkspaceError(error?.message ?? "Schedule was not saved.");
+      return;
+    }
     setScheduleEvents((current) =>
-      current.map((event) =>
-        event.id === eventId ? { ...event, day, startsAt: nextStartsAt } : event,
+      current.map((item) =>
+        item.id === eventId
+          ? {
+              ...item,
+              startsAt: next.toISOString(),
+              day: formatScheduleDay(next.toISOString()),
+            }
+          : item,
       ),
     );
-
-    if (supabase && eventToMove) {
-      await supabase
-        .from("schedule_events")
-        .update({ starts_at: nextStartsAt })
-        .eq("id", eventId);
-    }
-
-    await writeAuditLog("schedule_event.moved", "schedule_events", eventId);
   }
 
   function openScheduleEvent(eventId: string) {
@@ -922,6 +985,20 @@ export function MedBaseDashboard() {
 
     const startsAt = new Date(scheduleEditStartsAt).toISOString();
 
+    if (supabase) {
+      const { error } = await supabase
+        .from("schedule_events")
+        .update({ starts_at: startsAt })
+        .eq("id", selectedScheduleEvent.id)
+        .select("id")
+        .single();
+
+      if (error) {
+        setScheduleError(error.message);
+        return;
+      }
+    }
+
     setScheduleEvents((current) =>
       current.map((event) =>
         event.id === selectedScheduleEvent.id
@@ -935,23 +1012,6 @@ export function MedBaseDashboard() {
       ),
     );
 
-    if (supabase) {
-      const { error } = await supabase
-        .from("schedule_events")
-        .update({ starts_at: startsAt })
-        .eq("id", selectedScheduleEvent.id);
-
-      if (error) {
-        setScheduleError(error.message);
-        return;
-      }
-    }
-
-    await writeAuditLog(
-      "schedule_event.rescheduled",
-      "schedule_events",
-      selectedScheduleEvent.id,
-    );
     setSelectedScheduleEventId("");
     setScheduleEditStartsAt("");
     setScheduleError("");
@@ -964,27 +1024,26 @@ export function MedBaseDashboard() {
 
     const deletedEventId = selectedScheduleEvent.id;
 
+    if (supabase) {
+      const { error } = await supabase
+        .from("schedule_events")
+        .delete()
+        .eq("id", deletedEventId)
+        .select("id")
+        .single();
+
+      if (error) {
+        setScheduleError(error.message);
+        return;
+      }
+    }
+
     setScheduleEvents((current) =>
       current.filter((event) => event.id !== deletedEventId),
     );
     setSelectedScheduleEventId("");
     setScheduleEditStartsAt("");
     setScheduleError("");
-
-    if (supabase) {
-      const { error } = await supabase
-        .from("schedule_events")
-        .delete()
-        .eq("id", deletedEventId);
-
-      if (error) {
-        setScheduleError(error.message);
-        setScheduleEvents((current) => [...current, selectedScheduleEvent]);
-        return;
-      }
-    }
-
-    await writeAuditLog("schedule_event.deleted", "schedule_events", deletedEventId);
   }
 
   async function createScheduleItem() {
@@ -1030,11 +1089,6 @@ export function MedBaseDashboard() {
       }
 
       persistedScheduleId = data.id;
-      await writeAuditLog(
-        "schedule_event.created",
-        "schedule_events",
-        persistedScheduleId,
-      );
     }
 
     setScheduleEvents((current) => [
@@ -1058,7 +1112,8 @@ export function MedBaseDashboard() {
       },
     ]);
     setScheduleDraft({
-      appointmentType: userSettings.appointmentTypes[0] ?? defaultAppointmentTypes[0],
+      appointmentType:
+        userSettings.appointmentTypes[0] ?? defaultAppointmentTypes[0],
       owner: "",
       startsAt: "",
       type: "Clinic",
@@ -1071,7 +1126,9 @@ export function MedBaseDashboard() {
 
   async function sendTeamMessage() {
     if (!selectedChatId) {
-      setMessageError("Create or select a conversation before sending a message.");
+      setMessageError(
+        "Create or select a conversation before sending a message.",
+      );
       return;
     }
 
@@ -1105,7 +1162,6 @@ export function MedBaseDashboard() {
       }
 
       persistedMessageId = data.id;
-      await writeAuditLog("message.created", "messages", persistedMessageId);
     }
 
     setTeamChats((current) =>
@@ -1137,18 +1193,17 @@ export function MedBaseDashboard() {
     setMessageError("");
   }
 
-  function addParticipantToChat() {
-    if (!selectedChatId || !participantToAdd) {
+  async function addParticipantToChat() {
+    if (!supabase || !selectedChatId || !participantToAdd) return;
+    const { error } = await supabase.rpc("add_conversation_member", {
+      chat_id: selectedChatId,
+      member_email: participantToAdd,
+    });
+    if (error) {
+      setMessageError(error.message);
       return;
     }
-
-    setTeamChats((current) =>
-      current.map((chat) =>
-        chat.id === selectedChatId && !chat.participants.includes(participantToAdd)
-          ? { ...chat, type: "Group", participants: [...chat.participants, participantToAdd] }
-          : chat,
-      ),
-    );
+    await loadWorkspaceData(currentUserId, currentOrganizationId);
   }
 
   function toggleGroupParticipant(name: string) {
@@ -1167,31 +1222,24 @@ export function MedBaseDashboard() {
     let newChatId = `CHAT-${Date.now()}`;
 
     if (supabase) {
-      const { data, error } = await supabase
-        .from("conversations")
-        .insert({
-          organization_id: currentOrganizationId,
-          name: newGroupName.trim(),
-          chat_type: "Group",
-          created_by: currentUserId || null,
-        })
-        .select("id")
-        .single();
+      const { data, error } = await supabase.rpc("create_team_conversation", {
+        chat_name: newGroupName.trim(),
+        member_emails: newGroupParticipants,
+      });
 
       if (error) {
         setMessageError(error.message);
         return;
       }
 
-      newChatId = data.id;
-      await writeAuditLog("conversation.created", "conversations", newChatId);
+      newChatId = data;
     }
 
     const newChat: TeamChat = {
       id: newChatId,
       name: newGroupName.trim(),
       type: "Group",
-      participants: newGroupParticipants,
+      participants: [...new Set([userEmail, ...newGroupParticipants])],
       messages: [],
     };
 
@@ -1208,27 +1256,28 @@ export function MedBaseDashboard() {
       return;
     }
 
-    const combinedText = selectedChat.messages
-      .map((message) => message.text)
-      .join(" ");
-
     setSummarySuggestion({
       title: `Review follow-up from ${selectedChat.name}`,
-      description:
-        "Human review required. Confirm whether this chat contains an administrative follow-up that should become a shared team task.",
-      priority: combinedText.length > 220 ? "High" : "Medium",
+      description: selectedChat.messages
+        .slice(-5)
+        .map((message) => `${message.author}: ${message.text}`)
+        .join("\n"),
+      priority: "Medium",
       responsibleRole: "Office Manager",
-      dueDate: "Today 4:00 PM",
+      dueDate: "No due date",
     });
   }
 
   async function approveSuggestedTask() {
-    if (!summarySuggestion) {
+    if (!summarySuggestion?.title.trim()) {
       return;
     }
 
     let taskId = `TASK-${String(tasks.length + 1).padStart(3, "0")}`;
-    const dueAt = parseRelativeDueDate(summarySuggestion.dueDate);
+    const dueAt =
+      summarySuggestion.dueDate === "No due date"
+        ? null
+        : new Date(summarySuggestion.dueDate).toISOString();
 
     if (supabase) {
       const { data, error } = await supabase
@@ -1242,16 +1291,18 @@ export function MedBaseDashboard() {
           priority: summarySuggestion.priority,
           due_at: dueAt,
           status: "Pending Approval",
-          notes: "Generated from a team chat summary. Must be reviewed by a human.",
+          notes:
+            "Generated from a team chat summary. Must be reviewed by a human.",
           created_by: currentUserId || null,
         })
         .select("id")
         .single();
 
-      if (!error) {
-        taskId = data.id;
-        await writeAuditLog("task.created_from_summary", "tasks", taskId);
+      if (error) {
+        setMessageError(error.message);
+        return;
       }
+      taskId = data.id;
     }
 
     setTasks((current) => [
@@ -1262,7 +1313,8 @@ export function MedBaseDashboard() {
         assignedStaff: "Unassigned",
         department: "Administration",
         priority: summarySuggestion.priority,
-        dueDate: summarySuggestion.dueDate,
+        dueDate: formatDueDate(dueAt),
+        dueAt: dueAt ?? undefined,
         status: "Pending Approval",
         notes:
           "Generated from a team chat summary. Must be reviewed by a human.",
@@ -1271,6 +1323,7 @@ export function MedBaseDashboard() {
       ...current,
     ]);
     setSummarySuggestion(null);
+    setTaskFilter("All Tasks");
     setActiveModule("Tasks");
   }
 
@@ -1288,7 +1341,7 @@ export function MedBaseDashboard() {
     }
 
     if (supabase) {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("communication_posts")
         .insert({
           organization_id: currentOrganizationId,
@@ -1303,8 +1356,6 @@ export function MedBaseDashboard() {
         setCommunicationError(error.message);
         return;
       }
-
-      await writeAuditLog("communication_post.created", "communication_posts", data.id);
     }
 
     setCommunicationBoards((current) => ({
@@ -1316,15 +1367,21 @@ export function MedBaseDashboard() {
   }
 
   function updateUserSettings(nextSettings: UserPreferenceSettings) {
+    if (!supabase || !currentUserId) return;
     setUserSettings(nextSettings);
-
-    if (supabase && currentUserId) {
-      void supabase.from("user_settings").upsert({
-        user_id: currentUserId,
-        organization_id: currentOrganizationId,
-        settings: nextSettings,
+    settingsQueue.current = settingsQueue.current
+      .catch(() => {})
+      .then(async () => {
+        const { error } = await supabase
+          .from("user_settings")
+          .upsert({
+            user_id: currentUserId,
+            organization_id: currentOrganizationId,
+            settings: nextSettings,
+          });
+        if (error)
+          setWorkspaceError("Settings were not saved: " + error.message);
       });
-    }
   }
 
   function updateNotificationPreference(
@@ -1356,10 +1413,9 @@ export function MedBaseDashboard() {
       });
 
       if (error) {
+        setWorkspaceError(error.message);
         return;
       }
-
-      await writeAuditLog("department.created", "organization_departments");
     }
 
     setDepartments((current) => [...current, value]);
@@ -1368,19 +1424,23 @@ export function MedBaseDashboard() {
 
   async function removeDepartment(department: string) {
     if (supabase) {
-      await supabase
+      const { error } = await supabase
         .from("organization_departments")
         .delete()
         .eq("organization_id", currentOrganizationId)
         .eq("name", department);
-      await writeAuditLog("department.deleted", "organization_departments");
+      if (error) {
+        setWorkspaceError(error.message);
+        return;
+      }
     }
 
     setDepartments((current) => current.filter((item) => item !== department));
     if (userSettings.defaultDepartment === department) {
       updateUserSettings({
         ...userSettings,
-        defaultDepartment: departments.find((item) => item !== department) ?? "",
+        defaultDepartment:
+          departments.find((item) => item !== department) ?? "",
       });
     }
   }
@@ -1401,7 +1461,6 @@ export function MedBaseDashboard() {
       appointmentType: current.appointmentType || value,
     }));
     setNewAppointmentType("");
-    void writeAuditLog("appointment_type.created", "user_settings");
   }
 
   function removeAppointmentType(appointmentType: string) {
@@ -1423,7 +1482,6 @@ export function MedBaseDashboard() {
           ? fallbackType
           : current.appointmentType,
     }));
-    void writeAuditLog("appointment_type.deleted", "user_settings");
   }
 
   async function addPendingInvite() {
@@ -1433,22 +1491,22 @@ export function MedBaseDashboard() {
       return;
     }
 
-    if (supabase) {
-      await supabase.from("notification_outbox").insert({
-        organization_id: currentOrganizationId,
-        channel: "email",
-        recipient: email,
-        subject: "Med Base invite draft",
-        body: `Invite ${email} as ${inviteDraft.role} in ${inviteDraft.department}.`,
-        status: "Draft",
-        created_by: currentUserId || null,
-      });
-      await writeAuditLog("invite_draft.created", "notification_outbox");
+    if (!supabase) return;
+    const { data, error } = await supabase.rpc("create_workspace_invite", {
+      invite_email: email,
+      invite_role: inviteDraft.role,
+      invite_department: inviteDraft.department,
+    });
+    if (error || !data) {
+      setWorkspaceError(error?.message ?? "Invite was not created.");
+      return;
     }
+    const url = `${window.location.origin}/?invite=${encodeURIComponent(data)}`;
 
     setPendingInvites((current) => [
       {
         id: `INV-${Date.now()}`,
+        url,
         email,
         role: inviteDraft.role,
         department: inviteDraft.department,
@@ -1458,6 +1516,27 @@ export function MedBaseDashboard() {
     setInviteDraft((current) => ({ ...current, email: "" }));
   }
 
+  async function assignTask(id: string, email: string) {
+    if (!supabase) return;
+    const { data, error } = await supabase
+      .from("tasks")
+      .update({ assigned_staff: email || null })
+      .eq("id", id)
+      .select("id")
+      .single();
+    if (error || !data) {
+      setWorkspaceError(error?.message ?? "Assignment was not saved.");
+      return;
+    }
+    setTasks((current) =>
+      current.map((task) =>
+        task.id === id
+          ? { ...task, assignedStaff: email || "Unassigned" }
+          : task,
+      ),
+    );
+  }
+
   async function updateTaskStatus(id: string, status: TaskStatus) {
     const completionTimestamp =
       status === "Completed" ? new Date().toLocaleString() : "";
@@ -1465,14 +1544,19 @@ export function MedBaseDashboard() {
     if (supabase) {
       const completedAt =
         status === "Completed" ? new Date().toISOString() : null;
-      await supabase
+      const { data, error } = await supabase
         .from("tasks")
         .update({
           status,
           completion_timestamp: completedAt,
         })
-        .eq("id", id);
-      await writeAuditLog("task.status_updated", "tasks", id);
+        .eq("id", id)
+        .select("id")
+        .single();
+      if (error || !data) {
+        setWorkspaceError(error?.message ?? "Task was not saved.");
+        return;
+      }
     }
 
     setTasks((current) =>
@@ -1488,17 +1572,55 @@ export function MedBaseDashboard() {
     );
   }
 
-  const visibleTasks = useMemo(() => {
-    return tasks.filter((task) => {
-      if (taskFilter === "My Tasks") return task.assignedStaff !== "Unassigned";
-      if (taskFilter === "Provider") return task.department === "Clinical Operations";
-      if (taskFilter === "Department") return task.department === "Scheduling";
-      if (taskFilter === "Today's Tasks") return task.dueDate.includes("Today");
-      if (taskFilter === "Overdue") return task.status === "Overdue";
-      if (taskFilter === "Completed") return task.status === "Completed";
-      return true;
-    });
-  }, [taskFilter, tasks]);
+  const visibleTasks = useMemo(
+    () =>
+      tasks.filter((task) =>
+        matchesTaskFilter(task, taskFilter, userEmail, now),
+      ),
+    [taskFilter, tasks, userEmail, now],
+  );
+
+  useEffect(() => {
+    if (authStatus !== "signed-in") return;
+    let lastActivity = Date.now();
+    const active = () => {
+      lastActivity = Date.now();
+    };
+    const events = ["pointerdown", "keydown", "touchstart"];
+    events.forEach((event) => window.addEventListener(event, active));
+    const timer = window.setInterval(() => {
+      if (
+        Date.now() - lastActivity >=
+        Number(userSettings.sessionTimeout) * 60000
+      )
+        void signOut();
+    }, 10000);
+    return () => {
+      window.clearInterval(timer);
+      events.forEach((event) => window.removeEventListener(event, active));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authStatus, userSettings.sessionTimeout]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60000);
+    return () => window.clearInterval(timer);
+  }, []);
+  useEffect(() => {
+    if (!allowedModules.includes(activeModule)) setActiveModule("Dashboard");
+  }, [allowedModules, activeModule]);
+
+  async function refreshWorkspace() {
+    if (!currentUserId || refreshing) return;
+    setRefreshing(true);
+    try {
+      await loadWorkspaceData(currentUserId, currentOrganizationId);
+    } catch {
+      setWorkspaceError("Could not refresh. Please try again.");
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   if (authStatus === "checking") {
     return (
@@ -1545,14 +1667,41 @@ export function MedBaseDashboard() {
           setAuthNotice("");
           setAuthView("landing");
         }}
-        role={role}
         setAuthForm={setAuthForm}
         setAuthMode={(mode) => {
           setAuthMode(mode);
           setAuthError("");
           setAuthNotice("");
         }}
-        setRole={setRole}
+        requestPasswordReset={async () => {
+          if (!supabase || !authForm.email.trim()) {
+            setAuthError("Enter your email first.");
+            return;
+          }
+          const { error } = await supabase.auth.resetPasswordForEmail(
+            authForm.email.trim(),
+            { redirectTo: `${window.location.origin}/reset-password` },
+          );
+          if (error) setAuthError(error.message);
+          else
+            setAuthNotice(
+              "If an account exists, a password reset link will arrive by email.",
+            );
+        }}
+        resendVerification={async () => {
+          if (!supabase || !authForm.email.trim()) {
+            setAuthError("Enter your email first.");
+            return;
+          }
+          const { error } = await supabase.auth.resend({
+            type: "signup",
+            email: authForm.email.trim(),
+            options: { emailRedirectTo: window.location.origin },
+          });
+          if (error) setAuthError(error.message);
+          else setAuthNotice("Check your email for a verification link.");
+        }}
+        busy={authBusy}
         submit={handleAuth}
       />
     );
@@ -1565,13 +1714,22 @@ export function MedBaseDashboard() {
           <div className="flex items-center gap-4">
             <MedBaseLogo compact />
             <div>
-              <h1 className="text-2xl font-semibold tracking-normal">Med Base</h1>
+              <h1 className="text-2xl font-semibold tracking-normal">
+                Med Base
+              </h1>
               <p className="mt-1 text-sm text-muted-foreground">
                 Signed in as {userEmail} - {role}
               </p>
             </div>
           </div>
           <div className="flex flex-wrap gap-3">
+            <Button
+              variant="secondary"
+              onClick={refreshWorkspace}
+              disabled={refreshing}
+            >
+              {refreshing ? "Refreshing…" : "Refresh workspace"}
+            </Button>
             <Button
               className="gap-2"
               onClick={() => {
@@ -1652,12 +1810,28 @@ export function MedBaseDashboard() {
               </button>
             ))}
           </nav>
+          <a href="/pilot-info" className="mt-6 block text-sm text-primary">
+            Pilot use and data handling
+          </a>
           <div className="mt-8 rounded-lg border border-[#dfe6ee] bg-[#f8fafc] p-4 text-sm leading-6 text-muted-foreground">
-            Role-based navigation is configured for Med Base architecture planning.
+            Your workspace access is managed by your organization. Only use
+            fictional data during the pilot.
           </div>
         </aside>
 
         <main className="grid gap-6 px-6 py-8 xl:px-10">
+          <p className="text-sm text-muted-foreground">
+            Pilot workspace — fictional data only. Use Refresh workspace to load
+            team updates.
+          </p>
+          {workspaceError && (
+            <p
+              role="alert"
+              className="rounded border border-red-300 bg-red-50 p-3 text-red-800"
+            >
+              {workspaceError}
+            </p>
+          )}
           {activeModule === "Dashboard" && (
             <DashboardModule
               scheduleEvents={scheduleEvents}
@@ -1680,6 +1854,8 @@ export function MedBaseDashboard() {
               setTaskFilter={setTaskFilter}
               taskFilter={taskFilter}
               tasks={visibleTasks}
+              assignTask={assignTask}
+              staffEmails={staffMembers.map((staff) => staff.name)}
               updateTaskStatus={updateTaskStatus}
             />
           )}
@@ -1703,6 +1879,7 @@ export function MedBaseDashboard() {
               setParticipantToAdd={setParticipantToAdd}
               staffDirectory={staffMembers}
               summarySuggestion={summarySuggestion}
+              setSummarySuggestion={setSummarySuggestion}
               teamChats={teamChats}
               toggleGroupParticipant={toggleGroupParticipant}
             />
@@ -1768,8 +1945,8 @@ function LandingPage({
       text: "Create direct chats and group threads for staff coordination.",
     },
     {
-      title: "AI summaries",
-      text: "Summarize operational conversations for human task review.",
+      title: "Conversation review",
+      text: "Review recent conversation excerpts and prepare follow-up drafts.",
     },
     {
       title: "Tasks",
@@ -1777,7 +1954,7 @@ function LandingPage({
     },
     {
       title: "Reminders",
-      text: "Prepare reminder workflows that reduce missed appointments.",
+      text: "Post shared daily reminders for your team. Email and SMS delivery are not available.",
     },
     {
       title: "Analytics",
@@ -1796,13 +1973,13 @@ function LandingPage({
       label: "Home",
       progress: "0%",
       title: "Med Base coordinates the work around care",
-      text: "A modular SaaS platform for scheduling, staff messaging, reminders, forms, tasks, and operational visibility.",
+      text: "Coordinate staff schedules, team messages, and reviewed follow-up tasks in one pilot workspace.",
     },
     {
       label: "Workflow entry",
       progress: "33%",
       title: "Start with the workflows teams repeat every day",
-      text: "Appointments, forms, reminders, messages, and task review stay connected in one operational workspace.",
+      text: "Staff schedules, messages, and task review stay connected in one operational workspace.",
     },
     {
       label: "Product view",
@@ -1814,7 +1991,7 @@ function LandingPage({
       label: "Full layout",
       progress: "100%",
       title: "Ready for login, testing, and future expansion",
-      text: "The public page tells the story; the logged-in app keeps the working dashboard, calendars, messaging, settings, and Supabase foundation.",
+      text: "Explore scheduling and team coordination using fictional data during the pilot.",
     },
   ];
   const storyProgress = Math.min(
@@ -1845,7 +2022,7 @@ function LandingPage({
 
   return (
     <main className="min-h-dvh overflow-x-hidden bg-white text-foreground">
-      <header className="sticky top-0 z-30 border-b border-white/10 bg-[#06172f]/92 text-white backdrop-blur-xl">
+      <header className="bg-[#06172f]/92 sticky top-0 z-30 border-b border-white/10 text-white backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
           <button
             className="flex items-center gap-2 text-sm font-semibold"
@@ -1859,8 +2036,9 @@ function LandingPage({
               Overview
             </a>
             <a href="#features">Features</a>
-            <a href="#ai">AI</a>
+            <a href="#ai">Review</a>
             <a href="#why">Why us?</a>
+            <a href="/pilot-info">Pilot information</a>
           </nav>
           <div className="flex items-center gap-2">
             <Button variant="secondary" onClick={openLogin}>
@@ -1881,7 +2059,8 @@ function LandingPage({
             style={{
               backgroundImage:
                 "radial-gradient(circle at 12% 18%, rgba(255,255,255,0.9) 0 1px, transparent 1.5px), radial-gradient(circle at 72% 28%, rgba(13,151,186,0.85) 0 1px, transparent 1.5px), radial-gradient(circle at 42% 78%, rgba(255,255,255,0.65) 0 1px, transparent 1.5px), linear-gradient(135deg, rgba(13,151,186,0.14), transparent 42%)",
-              backgroundSize: "180px 180px, 260px 260px, 220px 220px, 100% 100%",
+              backgroundSize:
+                "180px 180px, 260px 260px, 220px 220px, 100% 100%",
               transform: `translateY(${-parallaxShift * 0.12}px)`,
             }}
           />
@@ -1901,11 +2080,13 @@ function LandingPage({
                 {storyFrames.map((frame, index) => (
                   <div
                     key={frame.label}
+                    aria-hidden={activeStoryIndex !== index}
                     className="absolute inset-x-0 max-w-xl transition-all duration-500"
                     style={{
                       opacity: activeStoryIndex === index ? 1 : 0,
                       transform: `translateY(${activeStoryIndex === index ? 0 : 22}px)`,
-                      pointerEvents: activeStoryIndex === index ? "auto" : "none",
+                      pointerEvents:
+                        activeStoryIndex === index ? "auto" : "none",
                     }}
                   >
                     <p className="text-sm font-semibold uppercase text-cyan-200">
@@ -1929,7 +2110,7 @@ function LandingPage({
               <div className="mt-7 grid gap-4 text-sm sm:grid-cols-3">
                 {[
                   ["No EHR scope", "Workflow coordination only"],
-                  ["Human review", "AI drafts require approval"],
+                  ["Human review", "Manual drafts require approval"],
                   ["Modular", "Built to expand over time"],
                 ].map(([title, text]) => (
                   <div key={title} className="border-l-2 border-primary pl-3">
@@ -1949,8 +2130,12 @@ function LandingPage({
               >
                 <div className="mb-5 flex items-center justify-between text-white">
                   <div>
-                    <p className="text-sm font-semibold">Operations dashboard</p>
-                    <p className="text-xs text-white/60">Live workflow overview</p>
+                    <p className="text-sm font-semibold">
+                      Operations dashboard
+                    </p>
+                    <p className="text-xs text-white/60">
+                      Live workflow overview
+                    </p>
                   </div>
                   <StatusPill className="bg-primary text-primary-foreground ring-primary/40">
                     Active
@@ -1959,11 +2144,11 @@ function LandingPage({
                 <div className="grid gap-4 md:grid-cols-2">
                   {[
                     ["Appointment list", "82%"],
-                    ["Patient reminders", "68%"],
+                    ["Team reminders", "68%"],
                     ["Team messages", "74%"],
-                    ["Digital forms", "57%"],
+                    ["Staff coordination", "57%"],
                     ["Task approvals", "88%"],
-                    ["Insurance checks", "45%"],
+                    ["Department setup", "45%"],
                   ].map(([label, width], index) => (
                     <div
                       key={label}
@@ -1995,19 +2180,20 @@ function LandingPage({
               >
                 <p className="text-sm font-semibold text-slate-950">Today</p>
                 <div className="mt-4 grid gap-3">
-                  {["9:00 Intake forms", "11:30 Staff handoff", "2:15 Task review"].map(
-                    (item) => (
-                      <div
-                        key={item}
-                        className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-slate-800"
-                      >
-                        {item}
-                      </div>
-                    ),
-                  )}
+                  {[
+                    "9:00 Team planning",
+                    "11:30 Staff handoff",
+                    "2:15 Task review",
+                  ].map((item) => (
+                    <div
+                      key={item}
+                      className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-slate-800"
+                    >
+                      {item}
+                    </div>
+                  ))}
                 </div>
               </div>
-
             </div>
           </div>
         </div>
@@ -2045,10 +2231,10 @@ function LandingPage({
         <div className="mx-auto max-w-6xl">
           <div className="text-center">
             <StatusPill className="bg-primary/10 text-primary ring-primary/20">
-              AI Section
+              Conversation review
             </StatusPill>
             <h2 className="mt-4 text-3xl font-semibold">
-              AI summaries inside team messages
+              Conversation review inside team messages
             </h2>
             <p className="mt-3 text-sm text-muted-foreground">
               Suggestions are operational drafts and never medical decisions.
@@ -2058,20 +2244,21 @@ function LandingPage({
             <div>
               <h3 className="text-xl font-semibold">Human-reviewed workflow</h3>
               <p className="mt-3 text-sm leading-7 text-muted-foreground">
-                The AI helps organize team communication, but every output stays
-                in draft mode until a staff member reviews it.
+                The conversation review helps organize team communication, but
+                every output stays in draft mode until a staff member reviews
+                it.
               </p>
               <div className="mt-6 grid gap-3">
                 {[
                   {
                     step: "1",
                     title: "Select a staff conversation",
-                    text: "Direct messages and group chats can be summarized from the Messages page.",
+                    text: "Select a conversation from the Messages page to review its recent excerpts.",
                   },
                   {
                     step: "2",
                     title: "Generate an operational draft",
-                    text: "AI proposes follow-up actions, priority, responsible role, and due time.",
+                    text: "Review recent messages, then create a draft follow-up for staff approval.",
                   },
                   {
                     step: "3",
@@ -2137,32 +2324,42 @@ function LandingPage({
                     <p className="text-sm font-semibold text-primary-foreground">
                       Live team thread
                     </p>
-                    <p className="text-xs text-white/60">Operational messages only</p>
+                    <p className="text-xs text-white/60">
+                      Operational messages only
+                    </p>
                   </div>
                   <StatusPill className="bg-primary text-primary-foreground ring-primary/40">
-                    AI ready
+                    Manual review
                   </StatusPill>
                 </div>
 
                 <div className="grid gap-3">
                   {[
-                    ["Physician", "Can someone review the afternoon room flow?"],
+                    [
+                      "Physician",
+                      "Can someone review the afternoon room flow?",
+                    ],
                     ["Nurse", "Coverage looks tight around the second block."],
-                    ["Medical Assistant", "I can help confirm the forms queue."],
+                    [
+                      "Medical Assistant",
+                      "I can help confirm the forms queue.",
+                    ],
                   ].map(([author, text], index) => (
                     <div
                       key={author}
                       className="message-float rounded-lg border border-white/10 bg-white p-3 shadow-lg"
                       style={{ animationDelay: `${index * 0.45}s` }}
                     >
-                      <p className="text-xs font-semibold text-primary">{author}</p>
+                      <p className="text-xs font-semibold text-primary">
+                        {author}
+                      </p>
                       <p className="mt-1 text-sm text-slate-700">{text}</p>
                     </div>
                   ))}
                 </div>
 
                 <div className="ai-pulse mx-auto grid size-14 place-items-center rounded-full bg-primary text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30">
-                  AI
+                  Review
                 </div>
 
                 <div className="summary-slide rounded-lg border border-primary/30 bg-white p-4 shadow-lg">
@@ -2203,7 +2400,10 @@ function LandingPage({
         </div>
         <div className="mt-8 grid gap-4 md:grid-cols-4">
           {workflowCards.map((item) => (
-            <div key={item} className="rounded-lg border border-border bg-white p-4">
+            <div
+              key={item}
+              className="rounded-lg border border-border bg-white p-4"
+            >
               <StatusPill className="bg-primary/10 text-primary ring-primary/20">
                 Step
               </StatusPill>
@@ -2238,12 +2438,16 @@ function LandingPage({
               {[
                 "Easy to evaluate and expand",
                 "Role-based architecture",
-                "Supabase-ready foundation",
+                "Fictional-data pilot",
               ].map((item) => (
-                <div key={item} className="rounded-lg border border-border bg-white p-4">
+                <div
+                  key={item}
+                  className="rounded-lg border border-border bg-white p-4"
+                >
                   <p className="font-semibold">{item}</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Built for production architecture while protecting clinical scope.
+                    Evaluate staff coordination with fictional examples during
+                    the pilot.
                   </p>
                 </div>
               ))}
@@ -2260,9 +2464,18 @@ function LandingPage({
               Healthcare workflow coordination for modern teams.
             </p>
           </div>
-          <InfoBlock title="Product" lines={["Features", "Integrations", "Roadmap"]} />
-          <InfoBlock title="Resources" lines={["Documentation", "Support", "Guides"]} />
-          <InfoBlock title="Company" lines={["About", "Careers", "Contact"]} />
+          <div className="grid content-start gap-3">
+            <h3 className="font-semibold">Product</h3>
+            <a href="#features">Features</a>
+            <a href="#ai">Conversation review</a>
+          </div>
+          <div className="grid content-start gap-3">
+            <h3 className="font-semibold">Pilot</h3>
+            <a href="/pilot-info">Use and data handling</a>
+            <button className="text-left" onClick={openCreateAccount}>
+              Start a fictional-data pilot
+            </button>
+          </div>
         </div>
       </footer>
     </main>
@@ -2270,18 +2483,22 @@ function LandingPage({
 }
 
 function AuthScreen({
+  requestPasswordReset,
+  resendVerification,
+  busy,
   authError,
   authForm,
   authMode,
   authNotice,
   isSupabaseConfigured,
   onBack,
-  role,
   setAuthForm,
   setAuthMode,
-  setRole,
   submit,
 }: {
+  requestPasswordReset: () => void;
+  resendVerification: () => void;
+  busy: boolean;
   authError: string;
   authForm: {
     email: string;
@@ -2293,7 +2510,6 @@ function AuthScreen({
   authNotice: string;
   isSupabaseConfigured: boolean;
   onBack: () => void;
-  role: Role;
   setAuthForm: (form: {
     email: string;
     password: string;
@@ -2301,7 +2517,6 @@ function AuthScreen({
     organizationName: string;
   }) => void;
   setAuthMode: (mode: "login" | "create") => void;
-  setRole: (role: Role) => void;
   submit: () => void | Promise<void>;
 }) {
   const [showPassword, setShowPassword] = useState(false);
@@ -2328,10 +2543,8 @@ function AuthScreen({
         </p>
         <p className="mt-3 rounded-md bg-primary/10 px-3 py-2 text-xs leading-5 text-primary">
           {isSupabaseConfigured
-            ? "Supabase authentication is active."
-            : `Supabase keys are not configured yet. Missing: ${env.missingSupabaseKeys.join(
-                ", ",
-              )}. Add them in Vercel Production environment variables, then redeploy without build cache.`}
+            ? "Sign in to your workspace."
+            : "Sign-in is temporarily unavailable."}
         </p>
 
         <div className="mt-5 grid grid-cols-2 rounded-md border border-border bg-muted p-1">
@@ -2371,7 +2584,7 @@ function AuthScreen({
           </Field>
 
           {isCreate ? (
-            <Field label="Company or clinic name">
+            <Field label="Company or clinic name (invited staff: enter your clinic name)">
               <input
                 autoComplete="organization"
                 className={inputClassName}
@@ -2431,17 +2644,10 @@ function AuthScreen({
             </Field>
           ) : null}
 
-          <Field label="Role">
-            <select
-              className={inputClassName}
-              value={role}
-              onChange={(event) => setRole(event.target.value as Role)}
-            >
-              {roles.map((option) => (
-                <option key={option}>{option}</option>
-              ))}
-            </select>
-          </Field>
+          <p className="text-xs text-muted-foreground">
+            New workspace owners receive administrator access. Invited staff
+            receive the role assigned by their owner.
+          </p>
 
           {authError ? (
             <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
@@ -2455,10 +2661,18 @@ function AuthScreen({
             </p>
           ) : null}
 
-          <Button className="w-full" type="submit">
-            {isCreate ? "Create account" : "Log in"}
+          <Button className="w-full" type="submit" disabled={busy}>
+            {busy ? "Please wait…" : isCreate ? "Create account" : "Log in"}
           </Button>
         </form>
+        <div className="mt-4 flex flex-wrap gap-4 text-sm text-primary">
+          <button type="button" onClick={requestPasswordReset}>
+            Forgot password?
+          </button>
+          <button type="button" onClick={resendVerification}>
+            Resend verification email
+          </button>
+        </div>
       </section>
     </main>
   );
@@ -2476,9 +2690,21 @@ function DashboardModule({
   teamChats: TeamChat[];
 }) {
   const appointmentEvents = scheduleEvents.filter(
-    (event) => event.type === "Clinic",
+    (event) =>
+      event.type === "Clinic" &&
+      Boolean(
+        event.startsAt &&
+        isSameCalendarDate(new Date(event.startsAt), new Date()),
+      ),
   );
-  const shiftEvents = scheduleEvents.filter((event) => event.type === "Staff Shift");
+  const shiftEvents = scheduleEvents.filter(
+    (event) =>
+      event.type === "Staff Shift" &&
+      Boolean(
+        event.startsAt &&
+        isSameCalendarDate(new Date(event.startsAt), new Date()),
+      ),
+  );
   const pendingTasks = tasks.filter(
     (task) => task.status !== "Completed" && task.status !== "Cancelled",
   );
@@ -2512,7 +2738,7 @@ function DashboardModule({
         />
         <DashboardStatCard
           icon="+o"
-          label="Staff on Shift"
+          label="Staff Scheduled Today"
           value={String(shiftEvents.length)}
         />
         <DashboardStatCard
@@ -2562,7 +2788,7 @@ function DashboardModule({
 
         <DashboardPanel
           badge={String(notifications.length)}
-          cta="Mark All as Read"
+
           title="Notifications"
         >
           <div className="grid gap-4">
@@ -2588,7 +2814,9 @@ function DashboardModule({
                     !
                   </span>
                   <div>
-                    <p className="text-base font-semibold">{notification.title}</p>
+                    <p className="text-base font-semibold">
+                      {notification.title}
+                    </p>
                     <p className="mt-1 text-sm text-muted-foreground">
                       {notification.time}
                     </p>
@@ -2604,7 +2832,8 @@ function DashboardModule({
         <DashboardPanel
           badge={String(shiftEvents.length)}
           cta="Manage Roster"
-          title="Staff on Shift"
+          onCta={() => setActiveModule("Scheduling")}
+          title="Staff Scheduled Today"
         >
           <div className="grid gap-4">
             {shiftEvents.length === 0 ? (
@@ -2634,7 +2863,7 @@ function DashboardModule({
         </DashboardPanel>
 
         <DashboardPanel
-          cta="View Audit Log"
+          cta="View Metrics"
           onCta={() => setActiveModule("Analytics")}
           title="Recent Activity"
         >
@@ -2648,7 +2877,9 @@ function DashboardModule({
                   className="grid gap-3 rounded-lg bg-[#f0f0f0] p-4 md:grid-cols-[minmax(0,1fr)_130px]"
                 >
                   <div>
-                    <p className="text-base font-semibold">{message.chatName}</p>
+                    <p className="text-base font-semibold">
+                      {message.chatName}
+                    </p>
                     <p className="mt-1 text-base text-muted-foreground">
                       Message from {message.author}
                     </p>
@@ -2679,8 +2910,26 @@ function SchedulingModule({
   scheduleView: "Daily" | "Weekly" | "Monthly";
   setScheduleView: (view: "Daily" | "Weekly" | "Monthly") => void;
 }) {
-  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-  const today = new Date();
+  const [selectedDate, setSelectedDate] = useState(() => new Date());
+  const today = selectedDate;
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - today.getDay());
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(weekStart);
+    date.setDate(weekStart.getDate() + index);
+    return date;
+  });
+  function navigate(direction: number) {
+    const date = new Date(today);
+    if (scheduleView === "Monthly") {
+      date.setDate(1);
+      date.setMonth(date.getMonth() + direction);
+    } else
+      date.setDate(
+        date.getDate() + direction * (scheduleView === "Weekly" ? 7 : 1),
+      );
+    setSelectedDate(date);
+  }
   const todayEvents = scheduleEvents.filter((event) => {
     const eventDate = getScheduleDate(event);
     return eventDate
@@ -2698,6 +2947,21 @@ function SchedulingModule({
       title="Scheduling"
       description="Clinic scheduling with daily, weekly, and monthly calendar views."
     >
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <Button variant="secondary" onClick={() => navigate(-1)}>
+          Previous
+        </Button>
+        <Button variant="secondary" onClick={() => setSelectedDate(new Date())}>
+          Today
+        </Button>
+        <Button variant="secondary" onClick={() => navigate(1)}>
+          Next
+        </Button>
+        <span>
+          {today.toLocaleDateString()} ·{" "}
+          {Intl.DateTimeFormat().resolvedOptions().timeZone}
+        </span>
+      </div>
       <div className="flex flex-wrap gap-2">
         {(["Daily", "Weekly", "Monthly"] as const).map((view) => (
           <Button
@@ -2714,7 +2978,7 @@ function SchedulingModule({
         <div className="mt-5 rounded-lg border border-border bg-background p-4">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
             <div>
-              <h3 className="text-lg font-semibold">Today</h3>
+              <h3 className="text-lg font-semibold">Selected day</h3>
               <p className="text-sm text-muted-foreground">
                 {new Intl.DateTimeFormat("en-US", {
                   weekday: "long",
@@ -2752,21 +3016,31 @@ function SchedulingModule({
       ) : null}
 
       {scheduleView === "Weekly" ? (
-        <div className="mt-5 grid gap-4 xl:grid-cols-5">
+        <div className="mt-5 grid gap-4 xl:grid-cols-7">
           {days.map((day) => {
-            const dayEvents = scheduleEvents.filter((event) => event.day === day);
+            const dayEvents = scheduleEvents.filter(
+              (event) =>
+                event.startsAt &&
+                isSameCalendarDate(new Date(event.startsAt), day),
+            );
 
             return (
               <div
-                key={day}
+                key={day.toISOString()}
                 className="min-h-48 rounded-lg border border-border bg-background p-3"
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={(event) => {
                   const eventId = event.dataTransfer.getData("text/plain");
-                  moveScheduleEvent(eventId, day);
+                  moveScheduleEvent(eventId, day.toISOString());
                 }}
               >
-                <h3 className="font-semibold">{day}</h3>
+                <h3 className="font-semibold">
+                  {day.toLocaleDateString("en-US", {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </h3>
                 <div className="mt-3 grid gap-3">
                   {dayEvents.length === 0 ? (
                     <EmptyState message="No schedule items." />
@@ -2807,7 +3081,10 @@ function SchedulingModule({
           </div>
           <div className="grid grid-cols-7 border-l border-t border-border text-xs font-semibold text-muted-foreground">
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-              <div key={day} className="border-b border-r border-border bg-white p-2">
+              <div
+                key={day}
+                className="border-b border-r border-border bg-white p-2"
+              >
                 {day}
               </div>
             ))}
@@ -2824,12 +3101,14 @@ function SchedulingModule({
                 <div
                   key={date.toISOString()}
                   className={`min-h-28 border-b border-r border-border p-2 ${
-                    isCurrentMonth ? "bg-white" : "bg-slate-50 text-muted-foreground"
+                    isCurrentMonth
+                      ? "bg-white"
+                      : "bg-slate-50 text-muted-foreground"
                   }`}
                 >
                   <div className="mb-2 flex items-center justify-between">
                     <span className="font-semibold">{date.getDate()}</span>
-                    {isSameCalendarDate(date, today) ? (
+                    {isSameCalendarDate(date, new Date()) ? (
                       <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-white">
                         Today
                       </span>
@@ -2842,7 +3121,10 @@ function SchedulingModule({
                         className={`truncate rounded-md border px-2 py-1 text-left ${eventStyles[event.type]}`}
                         onClick={() => openScheduleEvent(event.id)}
                         onKeyDown={(keyEvent) => {
-                          if (keyEvent.key === "Enter" || keyEvent.key === " ") {
+                          if (
+                            keyEvent.key === "Enter" ||
+                            keyEvent.key === " "
+                          ) {
                             keyEvent.preventDefault();
                             openScheduleEvent(event.id);
                           }
@@ -2898,9 +3180,7 @@ function ScheduleEventCard({
     <article
       className={`rounded-lg border p-3 text-sm transition hover:shadow-md ${
         draggable ? "cursor-grab" : "cursor-pointer"
-      } ${
-        eventStyles[event.type]
-      }`}
+      } ${eventStyles[event.type]}`}
       draggable={draggable}
       onClick={() => openScheduleEvent(event.id)}
       onDragStart={(dragEvent) => {
@@ -2931,7 +3211,9 @@ function ScheduleEventCard({
         </span>
       </div>
       {event.startsAt ? (
-        <p className="mt-2 text-xs opacity-80">{formatScheduleDate(event.startsAt)}</p>
+        <p className="mt-2 text-xs opacity-80">
+          {formatScheduleDate(event.startsAt)}
+        </p>
       ) : null}
     </article>
   );
@@ -2961,7 +3243,8 @@ function ScheduleEventManageModal({
           <div>
             <h2 className="text-xl font-semibold">Manage Schedule Item</h2>
             <p className="mt-1 text-sm leading-6 text-muted-foreground">
-              Move this item to another date and time, or remove it from the schedule.
+              Move this item to another date and time, or remove it from the
+              schedule.
             </p>
           </div>
           <button
@@ -2975,12 +3258,16 @@ function ScheduleEventManageModal({
         </div>
 
         <div className="grid gap-4 p-5">
-          <div className={`rounded-lg border p-4 text-sm ${eventStyles[event.type]}`}>
+          <div
+            className={`rounded-lg border p-4 text-sm ${eventStyles[event.type]}`}
+          >
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-base font-semibold">{event.title}</p>
                 <p className="mt-1">{event.owner}</p>
-                <p>{event.day} at {event.time}</p>
+                <p>
+                  {event.day} at {event.time}
+                </p>
                 {event.details ? (
                   <p className="mt-2 text-xs opacity-80">{event.details}</p>
                 ) : null}
@@ -3016,7 +3303,9 @@ function ScheduleEventManageModal({
               <Button variant="secondary" onClick={close}>
                 Cancel
               </Button>
-              <Button onClick={updateScheduleEventDate}>Move schedule item</Button>
+              <Button onClick={updateScheduleEventDate}>
+                Move schedule item
+              </Button>
             </div>
           </div>
         </div>
@@ -3123,7 +3412,10 @@ function ScheduleItemModal({
               placeholder="Assigned staff member"
               value={scheduleDraft.owner}
               onChange={(event) =>
-                setScheduleDraft({ ...scheduleDraft, owner: event.target.value })
+                setScheduleDraft({
+                  ...scheduleDraft,
+                  owner: event.target.value,
+                })
               }
             />
           </Field>
@@ -3134,7 +3426,10 @@ function ScheduleItemModal({
               type="datetime-local"
               value={scheduleDraft.startsAt}
               onChange={(event) =>
-                setScheduleDraft({ ...scheduleDraft, startsAt: event.target.value })
+                setScheduleDraft({
+                  ...scheduleDraft,
+                  startsAt: event.target.value,
+                })
               }
             />
           </Field>
@@ -3145,7 +3440,10 @@ function ScheduleItemModal({
               placeholder="Operational notes, location, or visit preparation details"
               value={scheduleDraft.details}
               onChange={(event) =>
-                setScheduleDraft({ ...scheduleDraft, details: event.target.value })
+                setScheduleDraft({
+                  ...scheduleDraft,
+                  details: event.target.value,
+                })
               }
             />
           </Field>
@@ -3169,11 +3467,15 @@ function ScheduleItemModal({
 }
 
 function TasksModule({
+  assignTask,
+  staffEmails,
   setTaskFilter,
   taskFilter,
   tasks,
   updateTaskStatus,
 }: {
+  assignTask: (id: string, email: string) => void;
+  staffEmails: string[];
   setTaskFilter: (filter: string) => void;
   taskFilter: string;
   tasks: Task[];
@@ -3181,8 +3483,7 @@ function TasksModule({
 }) {
   const filters = [
     "My Tasks",
-    "Provider",
-    "Department",
+    "All Tasks",
     "Today's Tasks",
     "Overdue",
     "Completed",
@@ -3209,7 +3510,10 @@ function TasksModule({
           <EmptyState message="No tasks match this filter." />
         ) : (
           tasks.map((task) => (
-            <article key={task.id} className="rounded-lg border border-border p-4">
+            <article
+              key={task.id}
+              className="rounded-lg border border-border p-4"
+            >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="font-semibold">{task.title}</p>
@@ -3222,7 +3526,28 @@ function TasksModule({
                 </StatusPill>
               </div>
               <div className="mt-4 grid gap-3 text-sm md:grid-cols-3">
-                <p>Assigned: {task.assignedStaff}</p>
+                <label>
+                  Assigned:{" "}
+                  <select
+                    aria-label="Assigned staff"
+                    className={inputClassName}
+                    value={
+                      task.assignedStaff === "Unassigned"
+                        ? ""
+                        : task.assignedStaff
+                    }
+                    onChange={(event) =>
+                      assignTask(task.id, event.target.value)
+                    }
+                  >
+                    <option value="">Unassigned</option>
+                    {staffEmails.map((email) => (
+                      <option key={email} value={email}>
+                        {email}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <p>Department: {task.department}</p>
                 <p>Priority: {task.priority}</p>
                 <p>Due: {task.dueDate}</p>
@@ -3278,6 +3603,7 @@ function MessagesModule({
   setParticipantToAdd,
   staffDirectory,
   summarySuggestion,
+  setSummarySuggestion,
   teamChats,
   toggleGroupParticipant,
 }: {
@@ -3299,6 +3625,7 @@ function MessagesModule({
   setParticipantToAdd: (value: string) => void;
   staffDirectory: { name: string; role: Role; department: string }[];
   summarySuggestion: SummarySuggestion | null;
+  setSummarySuggestion: (draft: SummarySuggestion) => void;
   teamChats: TeamChat[];
   toggleGroupParticipant: (name: string) => void;
 }) {
@@ -3308,7 +3635,7 @@ function MessagesModule({
     <div className="grid gap-6">
       <Panel
         title="Messages"
-        description="Direct messages and group chats for operational coordination. AI summaries are drafts for human review only."
+        description="Direct messages and group chats for operational coordination. Conversation review are drafts for human review only."
       >
         <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_340px]">
           <div className="grid content-start gap-3">
@@ -3324,7 +3651,7 @@ function MessagesModule({
               </label>
               <div className="mt-3 grid gap-2">
                 {staffDirectory.length === 0 ? (
-                  <EmptyState message="No staff users loaded yet. Create invite drafts in Settings or connect user profiles from Supabase." />
+                  <EmptyState message="No staff users loaded yet. Create invitation links in Settings." />
                 ) : (
                   staffDirectory.map((staff) => (
                     <label
@@ -3467,14 +3794,14 @@ function MessagesModule({
               <div className="flex flex-wrap gap-2">
                 <Button onClick={sendTeamMessage}>Send message</Button>
                 <Button variant="secondary" onClick={generateChatSummary}>
-                  AI summarize this chat
+                  Prepare review draft
                 </Button>
               </div>
             </div>
           </div>
 
           <div className="rounded-lg border border-border bg-white p-4">
-            <h3 className="font-semibold">AI Chat Summary</h3>
+            <h3 className="font-semibold">Conversation review</h3>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
               Summaries are operational drafts only. They cannot create medical
               decisions and require human review before becoming tasks.
@@ -3482,31 +3809,83 @@ function MessagesModule({
             {summarySuggestion ? (
               <div className="mt-4 grid gap-3 text-sm">
                 <p>
-                  <strong>Summary:</strong> Conversation contains operational
-                  coordination follow-up.
+                  <strong>Recent messages:</strong>{" "}
+                  {summarySuggestion.description}
                 </p>
-                <p>
-                  <strong>Suggested action:</strong> {summarySuggestion.title}
-                </p>
+                <Field label="Task title">
+                  <input
+                    className={inputClassName}
+                    value={summarySuggestion.title}
+                    onChange={(event) =>
+                      setSummarySuggestion({
+                        ...summarySuggestion,
+                        title: event.target.value,
+                      })
+                    }
+                  />
+                </Field>
+                <Field label="Follow-up details">
+                  <textarea
+                    className={inputClassName}
+                    value={summarySuggestion.description}
+                    onChange={(event) =>
+                      setSummarySuggestion({
+                        ...summarySuggestion,
+                        description: event.target.value,
+                      })
+                    }
+                  />
+                </Field>
+                <Field label="Priority">
+                  <select
+                    className={inputClassName}
+                    value={summarySuggestion.priority}
+                    onChange={(event) =>
+                      setSummarySuggestion({
+                        ...summarySuggestion,
+                        priority: event.target.value as Task["priority"],
+                      })
+                    }
+                  >
+                    {["Low", "Medium", "High"].map((priority) => (
+                      <option key={priority}>{priority}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Due date (optional)">
+                  <input
+                    className={inputClassName}
+                    type="datetime-local"
+                    value={
+                      summarySuggestion.dueDate === "No due date"
+                        ? ""
+                        : summarySuggestion.dueDate
+                    }
+                    onChange={(event) =>
+                      setSummarySuggestion({
+                        ...summarySuggestion,
+                        dueDate: event.target.value || "No due date",
+                      })
+                    }
+                  />
+                </Field>
                 <p>
                   <strong>Priority:</strong> {summarySuggestion.priority}
                 </p>
-                <p>
-                  <strong>Responsible role:</strong>{" "}
-                  {summarySuggestion.responsibleRole}
-                </p>
+                <p>Assign a staff member after creating the draft task.</p>
                 <p>
                   <strong>Due:</strong> {summarySuggestion.dueDate}
                 </p>
-                <Button onClick={approveSuggestedTask}>Send to task review</Button>
+                <Button onClick={approveSuggestedTask}>
+                  Send to task review
+                </Button>
               </div>
             ) : (
-              <EmptyState message="Select a chat and generate an AI summary draft." />
+              <EmptyState message="Select a chat and prepare a conversation review draft." />
             )}
           </div>
         </div>
       </Panel>
-
     </div>
   );
 }
@@ -3578,7 +3957,10 @@ function CommunicationModule({
                 })
               }
             />
-            <Button className="mt-3 w-full" onClick={() => addCommunicationPost(board.key)}>
+            <Button
+              className="mt-3 w-full"
+              onClick={() => addCommunicationPost(board.key)}
+            >
               Add update
             </Button>
             <div className="mt-4">
@@ -3624,9 +4006,7 @@ function AnalyticsModule({
     {
       label: "Appointment volume",
       value: String(
-        scheduleEvents.filter(
-          (event) => event.type === "Clinic",
-        ).length,
+        scheduleEvents.filter((event) => event.type === "Clinic").length,
       ),
       detail: "Scheduled appointment-related events.",
     },
@@ -3664,10 +4044,15 @@ function AnalyticsModule({
     >
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {metrics.map((metric) => (
-          <div key={metric.label} className="rounded-lg border border-border p-4">
+          <div
+            key={metric.label}
+            className="rounded-lg border border-border p-4"
+          >
             <p className="text-sm text-muted-foreground">{metric.label}</p>
             <p className="mt-2 text-3xl font-semibold">{metric.value}</p>
-            <p className="mt-2 text-sm text-muted-foreground">{metric.detail}</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {metric.detail}
+            </p>
           </div>
         ))}
       </div>
@@ -3703,7 +4088,11 @@ function SettingsModule({
   pendingInvites: PendingInvite[];
   removeAppointmentType: (appointmentType: string) => void;
   removeDepartment: (department: string) => void;
-  setInviteDraft: (value: { email: string; role: Role; department: string }) => void;
+  setInviteDraft: (value: {
+    email: string;
+    role: Role;
+    department: string;
+  }) => void;
   setNewAppointmentType: (value: string) => void;
   setNewDepartment: (value: string) => void;
   setUserSettings: (value: UserPreferenceSettings) => void;
@@ -3727,13 +4116,13 @@ function SettingsModule({
   return (
     <Panel
       title="Settings"
-      description="Operational preferences, access controls, and privacy defaults for Med Base."
+      description="Workspace preferences and invitation links. Calendars use your device timezone."
     >
       <div className="grid gap-5 xl:grid-cols-2">
         <section className="rounded-lg border border-border bg-background p-4">
           <h3 className="font-semibold">Organization</h3>
           <div className="mt-4 grid gap-3">
-            <Field label="Organization name">
+            <Field label="Workspace display name (personal preference)">
               <input
                 className={inputClassName}
                 value={userSettings.organizationName}
@@ -3763,12 +4152,15 @@ function SettingsModule({
                 ))}
               </select>
             </Field>
-            <Field label="Timezone">
+            <Field label="Preferred timezone (preview; calendar uses device time)">
               <select
                 className={inputClassName}
                 value={userSettings.timezone}
                 onChange={(event) =>
-                  setUserSettings({ ...userSettings, timezone: event.target.value })
+                  setUserSettings({
+                    ...userSettings,
+                    timezone: event.target.value,
+                  })
                 }
               >
                 <option value="America/Los_Angeles">Pacific Time</option>
@@ -3777,7 +4169,7 @@ function SettingsModule({
                 <option value="America/New_York">Eastern Time</option>
               </select>
             </Field>
-            <Field label="Date format">
+            <Field label="Date format preference (preview)">
               <select
                 className={inputClassName}
                 value={userSettings.dateFormat}
@@ -3849,7 +4241,9 @@ function SettingsModule({
         </section>
 
         <section className="rounded-lg border border-border bg-background p-4">
-          <h3 className="font-semibold">Notifications</h3>
+          <h3 className="font-semibold">
+            Notification preferences (delivery not connected)
+          </h3>
           <div className="mt-4 grid gap-3">
             {notificationOptions.map((option) => (
               <label
@@ -3861,7 +4255,10 @@ function SettingsModule({
                   checked={userSettings.notifications[option.key]}
                   type="checkbox"
                   onChange={(event) =>
-                    updateNotificationPreference(option.key, event.target.checked)
+                    updateNotificationPreference(
+                      option.key,
+                      event.target.checked,
+                    )
                   }
                 />
               </label>
@@ -3872,12 +4269,15 @@ function SettingsModule({
         <section className="rounded-lg border border-border bg-background p-4">
           <h3 className="font-semibold">Display And Security</h3>
           <div className="mt-4 grid gap-3">
-            <Field label="Theme">
+            <Field label="Theme preference (preview)">
               <select
                 className={inputClassName}
                 value={userSettings.theme}
                 onChange={(event) =>
-                  setUserSettings({ ...userSettings, theme: event.target.value })
+                  setUserSettings({
+                    ...userSettings,
+                    theme: event.target.value,
+                  })
                 }
               >
                 <option value="Healthcare light">Healthcare light</option>
@@ -3902,7 +4302,7 @@ function SettingsModule({
               </select>
             </Field>
             <label className="flex items-center justify-between gap-4 rounded-md border border-border bg-white px-3 py-2 text-sm">
-              <span>Compact layout</span>
+              <span>Compact layout preference (preview)</span>
               <input
                 checked={userSettings.compactMode}
                 type="checkbox"
@@ -3914,24 +4314,16 @@ function SettingsModule({
                 }
               />
             </label>
-            <label className="flex items-center justify-between gap-4 rounded-md border border-border bg-white px-3 py-2 text-sm">
-              <span>Privacy mode by default</span>
-              <input
-                checked={userSettings.privacyMode}
-                type="checkbox"
-                onChange={(event) =>
-                  setUserSettings({
-                    ...userSettings,
-                    privacyMode: event.target.checked,
-                  })
-                }
-              />
-            </label>
           </div>
         </section>
 
         <section className="rounded-lg border border-border bg-background p-4">
           <h3 className="font-semibold">User Management</h3>
+          <p className="mt-2 text-sm">
+            Create a link for a new staff account, then copy and send it to that
+            person. It expires after 7 days and only works for the specified
+            email. Email delivery is not connected.
+          </p>
           <div className="mt-4 grid gap-3">
             <input
               className={inputClassName}
@@ -3974,11 +4366,11 @@ function SettingsModule({
                 ))}
               </select>
             </div>
-            <Button onClick={addPendingInvite}>Create invite draft</Button>
+            <Button onClick={addPendingInvite}>Create invitation link</Button>
             <StackedList
               items={pendingInvites.map(
                 (invite) =>
-                  `${invite.email} - ${invite.role} - ${invite.department}`,
+                  `${invite.email} - ${invite.role} - ${invite.department} — copy and share this 7-day invitation: ${invite.url}`,
               )}
             />
           </div>
@@ -4023,7 +4415,10 @@ function ModuleIcon({ module }: { module: Module }) {
   const iconClassName = "h-5 w-5";
 
   return (
-    <span className="grid size-8 place-items-center text-current" aria-hidden="true">
+    <span
+      className="grid size-8 place-items-center text-current"
+      aria-hidden="true"
+    >
       <svg
         className={iconClassName}
         fill="none"
