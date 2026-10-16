@@ -5,7 +5,7 @@ import { useState, type FormEvent } from "react";
 
 const inbox = "taexuanyu@gmail.com";
 const fieldClass =
-  "mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none focus:border-cyan-600 focus:ring-2 focus:ring-cyan-600/20";
+  "mt-2 min-w-0 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none focus:border-cyan-600 focus:ring-2 focus:ring-cyan-600/20";
 
 export default function RequestDemo() {
   const [prepared, setPrepared] = useState(false);
@@ -49,8 +49,8 @@ export default function RequestDemo() {
           </Link>
         </nav>
       </header>
-      <div className="mx-auto grid max-w-6xl gap-10 px-6 py-12 md:py-20 lg:grid-cols-[1fr_1.05fr] lg:gap-16">
-        <section>
+      <div className="mx-auto grid max-w-6xl gap-10 px-6 py-12 md:py-20 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-16">
+        <section className="min-w-0">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-700">
             Meet your next team workspace
           </p>
@@ -107,7 +107,7 @@ export default function RequestDemo() {
           </p>
         </section>
         <section
-          className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/50 sm:p-8"
+          className="min-w-0 rounded-3xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/50 sm:p-8"
           aria-labelledby="request-heading"
         >
           <h2
